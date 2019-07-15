@@ -10,7 +10,9 @@
 import os
 import sgtk
 from sgtk.platform.qt import QtGui
-import NatronGui
+
+import BlackmagicFusion as bmd
+fusion = bmd.scriptapp("Fusion")
 
 
 __author__ = "Diego Garcia Huerta"
@@ -71,22 +73,18 @@ class SceneOperation(HookClass):
         app.log_debug('file_version: %s' % file_version)
         app.log_debug('read_only: %s' % read_only)
 
-        natron_app = NatronGui.natron.getActiveInstance()
+        comp = fusion.GetCurrentComp()
 
         if operation == "current_path":
-            # return the current scene path
-            project_name = natron_app.getProjectParam('projectName').getValue()
-            project_path = natron_app.getProjectParam('projectPath').getValue()
-            current_project_filename = os.path.join(project_path, project_name)
-            return current_project_filename
+            return comp.GetAttrs()['COMPS_FileName']
 
         elif operation == "open":
-            natron_app.loadProject(file_path)
+            fusion.LoadComp(file_path)
 
         elif operation == "save":
-            natron_app.saveProject()
+            comp.Save(file_path)
         elif operation == "save_as":
-            natron_app.saveProjectAs(file_path)
+            comp.Save(file_path)
         elif operation == "reset":
-            natron_app.resetProject()
+            comp.Save(file_path)
             return True

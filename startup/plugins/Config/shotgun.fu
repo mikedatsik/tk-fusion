@@ -1,0 +1,32 @@
+{
+    Action {
+        ID = "shotgun",
+        Category = "Muse",
+        Name = "Open shotgun...",
+ 
+        Targets = {
+            Composition = {
+                Execute = _Lua [=[
+                    local scriptPath = obj:Comp():MapPath("Scripts:/Comp/RnD/MT.lua")
+                    if not bmd.fileexists(scriptPath) then
+                        print("[Open shotgun Error] The required Lua script is missing from: " .. scriptPath)
+                    else
+                        target:RunScript(scriptPath)
+                    end
+                ]=],
+            },
+        },
+    },
+    Menus
+    {
+        Target = "ChildFrame",
+       
+        Before "Help"
+        {
+            Sub "shotgun"
+            {
+                "shotgun{}",
+            },      
+        },
+    },
+}

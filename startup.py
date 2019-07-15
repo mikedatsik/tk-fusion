@@ -76,6 +76,9 @@ class FusionLauncher(SoftwareLauncher):
         sgtk.util.append_path_to_env_var(
             "FUSION9_MasterPrefs", startup_path
         )
+        sgtk.util.append_path_to_env_var(
+             "FUSION_PYTHON27_HOME", "C:/Program Files/Shotgun/Python")
+
         required_env["FUSION9_MasterPrefs"] = os.environ[
             "FUSION9_MasterPrefs"
         ]

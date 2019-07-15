@@ -39,25 +39,18 @@ SHOW_COMP_DLG = "SGTK_COMPATIBILITY_DIALOG_SHOWN"
 
 
 def show_error(msg):
-    print("Shotgun Error | Cinema engine | %s " % msg)
-    gui.MessageDialog(
-        "Shotgun Error 'Cinema engine': \n {}".format(msg),
-        type=c4d.GEMB_OK
-    )
+    t = time.asctime(time.localtime())
+    print("%s - Shotgun Error | Cinema engine | %s " % (t, msg))
 
 
 def show_warning(msg):
-    gui.MessageDialog(
-        "Shotgun Warning 'Cinema engine': \n {}".format(msg),
-        type=c4d.GEMB_OK
-    )
+    t = time.asctime(time.localtime())
+    print("%s - Shotgun Error | Cinema engine | %s " % (t, msg))
 
 
 def show_info(msg):
-    gui.MessageDialog(
-        "Shotgun Info 'Cinema engine': \n {}".format(msg),
-        type=c4d.GEMB_OK
-    )
+    t = time.asctime(time.localtime())
+    print("%s - Shotgun Error | Cinema engine | %s " % (t, msg))
 
 
 def display_error(msg):
@@ -483,14 +476,68 @@ class FusionEngine(Engine):
         Handles the pyside init
         """
 
-        # import PySide first or we are in trouble
+        # first see if pyside2 is present
+        try:
+            from PySide2 import QtGui
+        except:
+            # fine, we don't expect PySide2 to be present just yet
+            self.logger.debug("PySide2 not detected - trying for PySide now...")
+        else:
+            # looks like pyside2 is already working! No need to do anything
+            self.logger.debug(
+                "PySide2 detected - the existing version will be used."
+            )
+            return
+
+        # then see if pyside is present
         try:
             from PySide import QtGui
-        except Exception, e:
+        except:
+            # must be that a PySide version is not installed,
+            self.logger.debug(
+                "PySide not detected - it will be added to the setup now..."
+            )
+        else:
+            # looks like pyside is already working! No need to do anything
+            self.logger.debug(
+                "PySide detected - the existing version will be used."
+            )
+            return
+
+        current_os = sys.platform.lower()
+        if current_os == "darwin":
+            desktop_path = os.environ.get("SHOTGUN_DESKTOP_INSTALL_PATH",
+                                          "/Applications/Shotgun.app")
+            sys.path.append(os.path.join(desktop_path, "Contents", "Resources",
+                                         "Python", "lib", "python2.7",
+                                         "site-packages"))    
+
+        elif current_os == "win32":
+            desktop_path = os.environ.get("SHOTGUN_DESKTOP_INSTALL_PATH",
+                                          "C:/Program Files/Shotgun")
+            sys.path.append(os.path.join(desktop_path,
+                                         "Python", "Lib", "site-packages"))
+
+        elif current_os == "linux2":
+            desktop_path = os.environ.get("SHOTGUN_DESKTOP_INSTALL_PATH",
+                                          "/opt/Shotgun/Shotgun")
+            sys.path.append(os.path.join(desktop_path,
+                                         "Python", "Lib", "site-packages"))
+
+
+        else:
+            self.logger.error("Unknown platform - cannot initialize PySide!")
+
+        # now try to import it
+        try:
+            from PySide import QtGui
+        except Exception as exception:
             traceback.print_exc()
-            self.logger.error("PySide could not be imported! Apps using pyside"
-                              " will not operate correctly!"
-                              "Error reported: %s", e)
+            self.logger.error(
+                "PySide could not be imported! Apps using pyside will not "
+                "operate correctly! Error reported: %s",
+                exception,
+            )
 
     def _get_dialog_parent(self):
         """
@@ -502,6 +549,7 @@ class FusionEngine(Engine):
         # Fusion. Following widgets ascendants return QWidget types which
         # cannot be guaranteed to be of QMainWindow class type. Tested but
         # did not work proeprly.
+
         return None
 
     @property

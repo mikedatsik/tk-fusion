@@ -1,0 +1,3 @@
+if composition ~= nil then
+    Execute("!Py: execfile('//storage04/Share/shotgun_config/primary/tk-fusion/startup/plugins/Scripts/Comp/fusion_startup.py')")
+end
