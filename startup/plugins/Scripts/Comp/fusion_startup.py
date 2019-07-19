@@ -11,7 +11,8 @@ context = sgtk.context.deserialize(env_context)
 
 engine = sgtk.platform.start_engine(env_engine, context.sgtk, context)
 
-
-# for item in engine.commands.items():
-#     if 'File Save...' in item[0]:
-#         item[1].get('callback').__call__()
+out = ""
+for item in engine.commands.items():
+    if 'File Save...' in item[0]:
+        out = item[1].get('callback')
+# out.__call__()

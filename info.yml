@@ -101,4 +101,3 @@ requires_shotgun_version:
 requires_core_version: "v0.18.8"
 
 frameworks:
-    - {"name": "tk-framework-unrealqt", "version": "v1.x.x"}

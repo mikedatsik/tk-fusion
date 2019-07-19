@@ -40,38 +40,38 @@ SHOW_COMP_DLG = "SGTK_COMPATIBILITY_DIALOG_SHOWN"
 
 def show_error(msg):
     t = time.asctime(time.localtime())
-    print("%s - Shotgun Error | Cinema engine | %s " % (t, msg))
+    print("%s - Shotgun Error | Fusion engine | %s " % (t, msg))
 
 
 def show_warning(msg):
     t = time.asctime(time.localtime())
-    print("%s - Shotgun Error | Cinema engine | %s " % (t, msg))
+    print("%s - Shotgun Error | Fusion engine | %s " % (t, msg))
 
 
 def show_info(msg):
     t = time.asctime(time.localtime())
-    print("%s - Shotgun Error | Cinema engine | %s " % (t, msg))
+    print("%s - Shotgun Error | Fusion engine | %s " % (t, msg))
 
 
 def display_error(msg):
     t = time.asctime(time.localtime())
-    print("%s - Shotgun Error | Cinema engine | %s " % (t, msg))
+    print("%s - Shotgun Error | Fusion engine | %s " % (t, msg))
 
 
 def display_warning(msg):
     t = time.asctime(time.localtime())
-    print("%s - Shotgun Warning | Cinema engine | %s " % (t, msg))
+    print("%s - Shotgun Warning | Fusion engine | %s " % (t, msg))
 
 
 def display_info(msg):
     t = time.asctime(time.localtime())
-    print("%s - Shotgun Info | Cinema engine | %s " % (t, msg))
+    print("%s - Shotgun Info | Fusion engine | %s " % (t, msg))
 
 
 def display_debug(msg):
     if os.environ.get("TK_DEBUG") == "1":
         t = time.asctime(time.localtime())
-        print("%s - Shotgun Debug | Cinema engine | %s " % (t, msg))
+        print("%s - Shotgun Debug | Fusion engine | %s " % (t, msg))
 
 
 
@@ -205,11 +205,11 @@ class FusionEngine(Engine):
             if os.path.exists(cacerts_file):
                 os.environ["SSL_CERT_FILE"] = cacerts_file
 
-        except Exception, exception:
+        except Exception:
             traceback.print_exc()
             self.logger.warning("Could not install Shotgun cacert.txt"
                                 " certificate due to the following exception:"
-                                " %s", exception)
+                                " ")
 
     def _restore_cacert_file(self):
         if self.ssl_cert_file is None:
@@ -344,11 +344,16 @@ class FusionEngine(Engine):
             self.log_debug("Initialising main QApplication...")
             qt_app = QtGui.QApplication([])
             qt_app.setWindowIcon(QtGui.QIcon(self.icon_256))
-            qt_app.setQuitOnLastWindowClosed(False)
+            qt_app.setQuitOnLastWindowClosed(True)
 
             # set up the dark style
-            self._initialize_dark_look_and_feel()
+            # self._initialize_dark_look_and_feel()
+            # wid = QtGui.QWidget()
+            # wid.resize(250, 150)
+            # wid.setWindowTitle('Simple')
+            # wid.show()
 
+            # sys.exit(qt_app.exec_())
         # pyqt_fusion.exec_(qt_app)
 
     def post_app_init(self):
@@ -463,13 +468,13 @@ class FusionEngine(Engine):
         """
         self.logger.debug("%s: Destroying...", self)
 
-        if self.get_setting("automatic_context_switch", True):
-            fusion.setOnProjectCreatedCallback("")
-            fusion.setOnProjectLoadedCallback("")
+        # if self.get_setting("automatic_context_switch", True):
+        #     fusion.setOnProjectCreatedCallback("")
+        #     fusion.setOnProjectLoadedCallback("")
 
         # fineally restore the cacert certificate we replaced if there was one
         # in the first place
-        self._restore_cacert_file()
+        # self._restore_cacert_file()
 
     def _init_pyside(self):
         """
