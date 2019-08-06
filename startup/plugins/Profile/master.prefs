@@ -2,8 +2,7 @@
 	Global = {
 		Paths = {
 			Map = {
-				["Scripts:"] = "\\\\storage04\\Share\\shotgun_config\\primary\\tk-fusion\\startup\\plugins\\Scripts",
-				["Config:"] = "\\\\storage04\\Share\\shotgun_config\\primary\\tk-fusion\\startup\\plugins\\Config",
+				["Scripts:"] = "\\\\storage04\\Share\\shotgun_config\\primary\\tk-fusion\\startup\\plugins\\Scripts"
 			},
 		},
 	},

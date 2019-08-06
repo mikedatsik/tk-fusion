@@ -14,7 +14,8 @@ import tank
 from tank import Hook
 from tank import TankError
 
-import NatronGui
+import BlackmagicFusion as bmd
+fusion = bmd.scriptapp("Fusion")
 
 
 __author__ = "Diego Garcia Huerta"
@@ -43,17 +44,13 @@ class SceneOperation(Hook):
                                      file path as a String
                     all others     - None
         """
-        natron_app = NatronGui.natron.getActiveInstance()
+        comp = fusion.GetCurrentComp()
 
         if operation == "current_path":
-            # return the current scene path
-            project_name = natron_app.getProjectParam('projectName').getValue()
-            project_path = natron_app.getProjectParam('projectPath').getValue()
-            current_project_filename = os.path.join(project_path, project_name)
-            return current_project_filename
+            return comp.GetAttrs()['COMPS_FileName']
 
         elif operation == "open":
-            natron_app.loadProject(file_path)
+            fusion.LoadComp(file_path)
 
         elif operation == "save":
-            natron_app.saveProject(file_path)
+            comp.Save(file_path)

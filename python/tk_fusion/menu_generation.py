@@ -19,41 +19,10 @@ import os
 import unicodedata
 
 from tank.platform.qt import QtGui, QtCore
-import NatronGui
 
 
 __author__ = "Diego Garcia Huerta"
 __email__ = "diegogh2000@gmail.com"
-
-
-def get_or_create_shotgun_menu(menu_name):
-    app = NatronGui.natron.getActiveInstance()
-    app_id = app.getAppID()
-    app_gui = NatronGui.natron.getGuiInstance(app_id)
-    fake_panel = NatronGui.PyPanel("shotgun.software.engine",
-                                   "tk-natron",
-                                   True,
-                                   app_gui)
-    main_window = fake_panel.parent()
-    del fake_panel
-
-    menu_bar = None
-    for m in main_window.findChildren(QtGui.QMenuBar):
-        menu_bar = m
-        break
-
-    for action in menu_bar.actions():
-        if action.text() == menu_name:
-            return action.menu()
-
-    help_action = None
-    for action in menu_bar.actions():
-        if action.text() == "Help":
-            shotgun_menu = QtGui.QMenu(menu_name)
-            menu_bar.insertMenu(action, shotgun_menu)
-            return shotgun_menu
-
-    return None
 
 
 class MenuGenerator(object):
@@ -68,187 +37,187 @@ class MenuGenerator(object):
         self._handle = None
         self._ui_cache = []
 
-    @property
-    def menu_handle(self):
-        self._handle = get_or_create_shotgun_menu(self._menu_name)
-        return self._handle
+    # @property
+    # def menu_handle(self):
+    #     self._handle = get_or_create_shotgun_menu(self._menu_name)
+    #     return self._handle
 
-    def create_menu(self, disabled=False):
-        """
-        Render the entire Shotgun menu.
-        In order to have commands enable/disable themselves based on the
-        enable_callback, re-create the menu items every time.
-        """
-        self.menu_handle.clear()
+    # def create_menu(self, disabled=False):
+    #     """
+    #     Render the entire Shotgun menu.
+    #     In order to have commands enable/disable themselves based on the
+    #     enable_callback, re-create the menu items every time.
+    #     """
+    #     self.menu_handle.clear()
 
-        if disabled:
-            self.menu_handle.addMenu("Sgtk is disabled.")
-            return
+    #     if disabled:
+    #         self.menu_handle.addMenu("Sgtk is disabled.")
+    #         return
 
-        # now add the context item on top of the main menu
-        self._context_menu = self._add_context_menu()
+    #     # now add the context item on top of the main menu
+    #     self._context_menu = self._add_context_menu()
 
-        # add menu divider
-        self._add_divider(self.menu_handle)
+    #     # add menu divider
+    #     self._add_divider(self.menu_handle)
 
-        # now enumerate all items and create menu objects for them
-        menu_items = []
-        for (cmd_name, cmd_details) in self._engine.commands.items():
-            self._engine.log_debug("engine command: %s : %s" %
-                                   (cmd_name, cmd_details))
-            menu_items.append(AppCommand(cmd_name, self, cmd_details))
+    #     # now enumerate all items and create menu objects for them
+    #     menu_items = []
+    #     for (cmd_name, cmd_details) in self._engine.commands.items():
+    #         self._engine.log_debug("engine command: %s : %s" %
+    #                                (cmd_name, cmd_details))
+    #         menu_items.append(AppCommand(cmd_name, self, cmd_details))
 
-        # sort list of commands in name order
-        menu_items.sort(key=lambda x: x.name)
+    #     # sort list of commands in name order
+    #     menu_items.sort(key=lambda x: x.name)
 
-        # now add favourites
-        for fav in self._engine.get_setting("menu_favourites"):
-            app_instance_name = fav["app_instance"]
-            menu_name = fav["name"]
+    #     # now add favourites
+    #     for fav in self._engine.get_setting("menu_favourites"):
+    #         app_instance_name = fav["app_instance"]
+    #         menu_name = fav["name"]
 
-            # scan through all menu items
-            for cmd in menu_items:
-                if (cmd.get_app_instance_name() == app_instance_name and
-                        cmd.name == menu_name):
-                    # found our match!
-                    cmd.add_command_to_menu(self.menu_handle)
-                    # mark as a favourite item
-                    cmd.favourite = True
+    #         # scan through all menu items
+    #         for cmd in menu_items:
+    #             if (cmd.get_app_instance_name() == app_instance_name and
+    #                     cmd.name == menu_name):
+    #                 # found our match!
+    #                 cmd.add_command_to_menu(self.menu_handle)
+    #                 # mark as a favourite item
+    #                 cmd.favourite = True
 
-        # add menu divider
-        self._add_divider(self.menu_handle)
+    #     # add menu divider
+    #     self._add_divider(self.menu_handle)
 
-        # now go through all of the menu items.
-        # separate them out into various sections
-        commands_by_app = {}
+    #     # now go through all of the menu items.
+    #     # separate them out into various sections
+    #     commands_by_app = {}
 
-        for cmd in menu_items:
-            if cmd.get_type() == "context_menu":
-                # context menu!
-                cmd.add_command_to_menu(self._context_menu)
+    #     for cmd in menu_items:
+    #         if cmd.get_type() == "context_menu":
+    #             # context menu!
+    #             cmd.add_command_to_menu(self._context_menu)
 
-            else:
-                # normal menu
-                app_name = cmd.get_app_name()
-                if app_name is None:
-                    # un-parented app
-                    app_name = "Other Items"
-                if not app_name in commands_by_app:
-                    commands_by_app[app_name] = []
-                commands_by_app[app_name].append(cmd)
+    #         else:
+    #             # normal menu
+    #             app_name = cmd.get_app_name()
+    #             if app_name is None:
+    #                 # un-parented app
+    #                 app_name = "Other Items"
+    #             if not app_name in commands_by_app:
+    #                 commands_by_app[app_name] = []
+    #             commands_by_app[app_name].append(cmd)
 
-        # now add all apps to main menu
-        self._add_app_menu(commands_by_app)
+    #     # now add all apps to main menu
+    #     self._add_app_menu(commands_by_app)
 
-    def _add_divider(self, parent_menu):
-        divider = QtGui.QAction(parent_menu)
-        divider.setSeparator(True)
-        parent_menu.addAction(divider)
-        return divider
+    # def _add_divider(self, parent_menu):
+    #     divider = QtGui.QAction(parent_menu)
+    #     divider.setSeparator(True)
+    #     parent_menu.addAction(divider)
+    #     return divider
 
-    def _add_sub_menu(self, menu_name, parent_menu):
-        sub_menu = QtGui.QMenu(title=menu_name, parent=parent_menu)
-        parent_menu.addMenu(sub_menu)
-        return sub_menu
+    # def _add_sub_menu(self, menu_name, parent_menu):
+    #     sub_menu = QtGui.QMenu(title=menu_name, parent=parent_menu)
+    #     parent_menu.addMenu(sub_menu)
+    #     return sub_menu
 
-    def _add_menu_item(self, name, parent_menu, callback, properties=None):
-        action = QtGui.QAction(name, parent_menu)
-        parent_menu.addAction(action)
-        action.triggered.connect(callback)
+    # def _add_menu_item(self, name, parent_menu, callback, properties=None):
+    #     action = QtGui.QAction(name, parent_menu)
+    #     parent_menu.addAction(action)
+    #     action.triggered.connect(callback)
 
-        if properties:
-            if "tooltip" in properties:
-                action.setTooltip(properties["tooltip"])
-                action.setStatustip(properties["tooltip"])
-            if "enable_callback" in properties:
-                action.setEnabled(properties["enable_callback"]())
+    #     if properties:
+    #         if "tooltip" in properties:
+    #             action.setTooltip(properties["tooltip"])
+    #             action.setStatustip(properties["tooltip"])
+    #         if "enable_callback" in properties:
+    #             action.setEnabled(properties["enable_callback"]())
 
-        return action
+    #     return action
 
-    def _add_context_menu(self):
-        """
-        Adds a context menu which displays the current context
-        """
+    # def _add_context_menu(self):
+    #     """
+    #     Adds a context menu which displays the current context
+    #     """
 
-        ctx = self._engine.context
-        ctx_name = str(ctx)
+    #     ctx = self._engine.context
+    #     ctx_name = str(ctx)
 
-        # create the menu object
-        # the label expects a unicode object so we cast it to support when the
-        # context may contain info with non-ascii characters
+    #     # create the menu object
+    #     # the label expects a unicode object so we cast it to support when the
+    #     # context may contain info with non-ascii characters
 
-        ctx_menu = self._add_sub_menu(ctx_name, self.menu_handle)
+    #     ctx_menu = self._add_sub_menu(ctx_name, self.menu_handle)
 
-        self._add_menu_item("Jump to Shotgun", ctx_menu, self._jump_to_sg)
+    #     self._add_menu_item("Jump to Shotgun", ctx_menu, self._jump_to_sg)
 
-        # Add the menu item only when there are some file system locations.
-        if ctx.filesystem_locations:
-            self._add_menu_item("Jump to File System",
-                                ctx_menu, self._jump_to_fs)
+    #     # Add the menu item only when there are some file system locations.
+    #     if ctx.filesystem_locations:
+    #         self._add_menu_item("Jump to File System",
+    #                             ctx_menu, self._jump_to_fs)
 
-        # divider (apps may register entries below this divider)
-        self._add_divider(ctx_menu)
+    #     # divider (apps may register entries below this divider)
+    #     self._add_divider(ctx_menu)
 
-        return ctx_menu
+    #     return ctx_menu
 
-    def _jump_to_sg(self):
-        """
-        Jump to shotgun, launch web browser
-        """
-        url = self._engine.context.shotgun_url
-        QtGui.QDesktopServices.openUrl(QtCore.QUrl(url))
+    # def _jump_to_sg(self):
+    #     """
+    #     Jump to shotgun, launch web browser
+    #     """
+    #     url = self._engine.context.shotgun_url
+    #     QtGui.QDesktopServices.openUrl(QtCore.QUrl(url))
 
-    def _jump_to_fs(self):
-        """
-        Jump from context to FS
-        """
-        # launch one window for each location on disk
-        paths = self._engine.context.filesystem_locations
-        for disk_location in paths:
+    # def _jump_to_fs(self):
+    #     """
+    #     Jump from context to FS
+    #     """
+    #     # launch one window for each location on disk
+    #     paths = self._engine.context.filesystem_locations
+    #     for disk_location in paths:
 
-            # get the setting
-            system = sys.platform
+    #         # get the setting
+    #         system = sys.platform
 
-            # run the app
-            if system == "linux2":
-                cmd = 'xdg-open "%s"' % disk_location
-            elif system == "darwin":
-                cmd = 'open "%s"' % disk_location
-            elif system == "win32":
-                cmd = 'cmd.exe /C start "Folder" "%s"' % disk_location
-            else:
-                raise Exception("Platform '%s' is not supported." % system)
+    #         # run the app
+    #         if system == "linux2":
+    #             cmd = 'xdg-open "%s"' % disk_location
+    #         elif system == "darwin":
+    #             cmd = 'open "%s"' % disk_location
+    #         elif system == "win32":
+    #             cmd = 'cmd.exe /C start "Folder" "%s"' % disk_location
+    #         else:
+    #             raise Exception("Platform '%s' is not supported." % system)
 
-            exit_code = os.system(cmd)
-            if exit_code != 0:
-                self._engine.logger.error("Failed to launch '%s'!", cmd)
+    #         exit_code = os.system(cmd)
+    #         if exit_code != 0:
+    #             self._engine.logger.error("Failed to launch '%s'!", cmd)
 
-    def _add_app_menu(self, commands_by_app):
-        """
-        Add all apps to the main menu, process them one by one.
-        """
-        for app_name in sorted(commands_by_app.keys()):
-            if len(commands_by_app[app_name]) > 1:
-                # more than one menu entry fort his app
-                # make a sub menu and put all items in the sub menu
-                app_menu = self._add_sub_menu(app_name, self.menu_handle)
+    # def _add_app_menu(self, commands_by_app):
+    #     """
+    #     Add all apps to the main menu, process them one by one.
+    #     """
+    #     for app_name in sorted(commands_by_app.keys()):
+    #         if len(commands_by_app[app_name]) > 1:
+    #             # more than one menu entry fort his app
+    #             # make a sub menu and put all items in the sub menu
+    #             app_menu = self._add_sub_menu(app_name, self.menu_handle)
 
-                # get the list of menu cmds for this app
-                cmds = commands_by_app[app_name]
-                # make sure it is in alphabetical order
-                cmds.sort(key=lambda x: x.name)
+    #             # get the list of menu cmds for this app
+    #             cmds = commands_by_app[app_name]
+    #             # make sure it is in alphabetical order
+    #             cmds.sort(key=lambda x: x.name)
 
-                for cmd in cmds:
-                    cmd.add_command_to_menu(app_menu)
-            else:
-                # this app only has a single entry.
-                # display that on the menu
-                # todo: Should this be labelled with the name of the app
-                # or the name of the menu item? Not sure.
-                cmd_obj = commands_by_app[app_name][0]
-                if not cmd_obj.favourite:
-                    # skip favourites since they are already on the menu
-                    cmd_obj.add_command_to_menu(self.menu_handle)
+    #             for cmd in cmds:
+    #                 cmd.add_command_to_menu(app_menu)
+    #         else:
+    #             # this app only has a single entry.
+    #             # display that on the menu
+    #             # todo: Should this be labelled with the name of the app
+    #             # or the name of the menu item? Not sure.
+    #             cmd_obj = commands_by_app[app_name][0]
+    #             if not cmd_obj.favourite:
+    #                 # skip favourites since they are already on the menu
+    #                 cmd_obj.add_command_to_menu(self.menu_handle)
 
 
 class AppCommand(object):

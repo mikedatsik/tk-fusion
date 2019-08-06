@@ -11,14 +11,15 @@
 import os
 import sgtk
 
-import NatronGui
+import BlackmagicFusion as bmd
+fusion = bmd.scriptapp("Fusion")
 
 HookBaseClass = sgtk.get_hook_baseclass()
 
 
-class NatronStartVersionControlPlugin(HookBaseClass):
+class FusionStartVersionControlPlugin(HookBaseClass):
     """
-    Simple plugin to insert a version number into the natron file path if one
+    Simple plugin to insert a version number into the fusion file path if one
     does not exist.
     """
 
@@ -72,9 +73,9 @@ class NatronStartVersionControlPlugin(HookBaseClass):
 
         Only items matching entries in this list will be presented to the
         accept() method. Strings can contain glob patters such as *, for example
-        ["natron.*", "file.natron"]
+        ["fusion.*", "file.fusion"]
         """
-        return ["natron.session"]
+        return ["fusion.session"]
 
     @property
     def settings(self):
@@ -129,24 +130,24 @@ class NatronStartVersionControlPlugin(HookBaseClass):
             version_number = self._get_version_number(path, item)
             if version_number is not None:
                 self.logger.info(
-                    "Natron '%s' plugin rejected the current session..." %
+                    "Fusion '%s' plugin rejected the current session..." %
                     (self.name,)
                 )
                 self.logger.info(
                     "  There is already a version number in the file...")
-                self.logger.info("  Natron file path: %s" % (path,))
+                self.logger.info("  Fusion file path: %s" % (path,))
                 return {"accepted": False}
         else:
             # the session has not been saved before (no path determined).
             # provide a save button. the session will need to be saved before
             # validation will succeed.
             self.logger.warn(
-                "The Natron session has not been saved.",
+                "The Fusion session has not been saved.",
                 extra=_get_save_as_action()
             )
 
         self.logger.info(
-            "Natron '%s' plugin accepted the current session." %
+            "Fusion '%s' plugin accepted the current session." %
             (self.name,),
             extra=_get_version_docs_action()
         )
@@ -178,7 +179,7 @@ class NatronStartVersionControlPlugin(HookBaseClass):
         if not path:
             # the session still requires saving. provide a save button.
             # validation fails
-            error_msg = "The Natron session has not been saved."
+            error_msg = "The Fusion session has not been saved."
             self.logger.error(
                 error_msg,
                 extra=_get_save_as_action()
@@ -228,8 +229,8 @@ class NatronStartVersionControlPlugin(HookBaseClass):
 
         # save to the new version path
         _save_session(version_path)
-        self.logger.info("A version number has been added to the Natron file...")
-        self.logger.info("  Natron file path: %s" % (version_path,))
+        self.logger.info("A version number has been added to the Fusion file...")
+        self.logger.info("  Fusion file path: %s" % (version_path,))
 
     def finalize(self, settings, item):
         """
@@ -290,16 +291,14 @@ def _session_path():
     Return the path to the current session
     :return:
     """
-    natron_app = NatronGui.natron.getActiveInstance()
-
-    project_name = natron_app.getProjectParam('projectName').getValue()
-    project_path = natron_app.getProjectParam('projectPath').getValue()
-    path = os.path.join(project_path, project_name)
+    comp = fusion.GetCurrentComp()
+    path = comp.GetAttrs()['COMPS_FileName']
 
     if isinstance(path, unicode):
         path = path.encode("utf-8")
 
     return path
+
 
 
 def _save_session(path):
@@ -311,11 +310,11 @@ def _save_session(path):
     folder = os.path.dirname(path)
     ensure_folder_exists(folder)
 
-    natron_app = NatronGui.natron.getActiveInstance()
-    natron_app.saveProjectAs(path)
+    comp = fusion.GetCurrentComp()
+    comp.Save(path)
 
 
-# TODO: method duplicated in all the natron hooks
+# TODO: method duplicated in all the fusion hooks
 def _get_save_as_action():
     """
     Simple helper for returning a log action dict for saving the session
@@ -354,15 +353,12 @@ def _get_version_docs_action():
 
 
 def _save_as():
-    natron_app = NatronGui.natron.getActiveInstance()
-    app_id= natron_app.getAppID()
-    natron_gui_app = NatronGui.natron.getGuiInstance(app_id)
-    project_path = natron_app.getProjectParam('projectPath').getValue()
+    comp = fusion.GetCurrentComp()
+    path = comp.GetAttrs()['COMPS_FileName']
 
-    # make sure not using unicode!
-    path = natron_gui_app.saveFilenameDialog(project_path, filters=("*.ntp",))
     if isinstance(path, unicode):
         path = path.encode("utf-8")
 
     if path:
-        natron_app.saveProjectAs(path)
+        comp.Save(path)
+

@@ -9,7 +9,7 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 import sgtk
 from sgtk import TankError
-import NatronGui
+import BlackmagicFusion as bmd
 
 
 __author__ = "Diego Garcia Huerta"
@@ -25,7 +25,7 @@ class FrameOperation(HookBaseClass):
     current scene
     """
 
-    def execute(self, operation, in_frame=None, out_frame=None, **kwargs):
+    def execute(self, operation, head_in_frame=None, in_frame=None, out_frame=None, tail_out_frame=None, **kwargs):
         """
         Main hook entry point
 
@@ -45,12 +45,18 @@ class FrameOperation(HookBaseClass):
                     'get_frame_range' - Returns the frame range in the form
                                         (in_frame, out_frame)
         """
-        natron_app = NatronGui.natron.getActiveInstance()
+        fusion = bmd.scriptapp("Fusion")
+        comp = fusion.GetCurrentComp()
 
         if operation == "get_frame_range":
-            current_in = natron_app.timelineGetLeftBound()
-            current_out = natron_app.timelineGetRightBound()
+            current_in = int(comp.GetAttrs()["COMPN_GlobalStart"])
+            current_out = int(comp.GetAttrs()["COMPN_GlobalEnd"])
             return (current_in, current_out)
+ 
         elif operation == "set_frame_range":
-            natron_app.getProjectParam('frameRange').set(in_frame, out_frame)
+            # set frame ranges for plackback
+            comp.SetAttrs({'COMPN_GlobalEnd' : out_frame})
+            comp.SetAttrs({'COMPN_RenderEnd': tail_out_frame})
+            comp.SetAttrs({'COMPN_GlobalStart' : in_frame})
+            comp.SetAttrs({'COMPN_RenderStart': head_in_frame})
             return True

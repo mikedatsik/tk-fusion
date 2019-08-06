@@ -12,14 +12,15 @@ import os
 import sgtk
 from sgtk.util.filesystem import ensure_folder_exists
 
-import NatronGui
+import BlackmagicFusion as bmd
+fusion = bmd.scriptapp("Fusion")
 
 HookBaseClass = sgtk.get_hook_baseclass()
 
 
-class NatronSessionPublishPlugin(HookBaseClass):
+class FusionSessionPublishPlugin(HookBaseClass):
     """
-    Plugin for publishing an open natron session.
+    Plugin for publishing an open fusion session.
 
     This hook relies on functionality found in the base file publisher hook in
     the publish2 app and should inherit from it in the configuration. The hook
@@ -107,10 +108,10 @@ class NatronSessionPublishPlugin(HookBaseClass):
         """
 
         # inherit the settings from the base publish plugin
-        base_settings = super(NatronSessionPublishPlugin, self).settings or {}
+        base_settings = super(FusionSessionPublishPlugin, self).settings or {}
 
         # settings specific to this class
-        natron_publish_settings = {
+        fusion_publish_settings = {
             "Publish Template": {
                 "type": "template",
                 "default": None,
@@ -121,7 +122,7 @@ class NatronSessionPublishPlugin(HookBaseClass):
         }
 
         # update the base settings
-        base_settings.update(natron_publish_settings)
+        base_settings.update(fusion_publish_settings)
 
         return base_settings
 
@@ -132,9 +133,9 @@ class NatronSessionPublishPlugin(HookBaseClass):
 
         Only items matching entries in this list will be presented to the
         accept() method. Strings can contain glob patters such as *, for example
-        ["natron.*", "file.natron"]
+        ["fusion.*", "file.fusion"]
         """
-        return ["natron.session"]
+        return ["fusion.session"]
 
     def accept(self, settings, item):
         """
@@ -175,12 +176,12 @@ class NatronSessionPublishPlugin(HookBaseClass):
             # provide a save button. the session will need to be saved before
             # validation will succeed.
             self.logger.warn(
-                "The Natron session has not been saved.",
+                "The Fusion session has not been saved.",
                 extra=_get_save_as_action()
             )
 
         self.logger.info(
-            "Natron '%s' plugin accepted the current Natron session." %
+            "Fusion '%s' plugin accepted the current Fusion session." %
             (self.name,)
         )
         return {
@@ -208,7 +209,7 @@ class NatronSessionPublishPlugin(HookBaseClass):
         if not path:
             # the session still requires saving. provide a save button.
             # validation fails.
-            error_msg = "The Natron session has not been saved."
+            error_msg = "The Fusion session has not been saved."
             self.logger.error(
                 error_msg,
                 extra=_get_save_as_action()
@@ -234,7 +235,7 @@ class NatronSessionPublishPlugin(HookBaseClass):
                     extra={
                         "action_button": {
                             "label": "Save File",
-                            "tooltip": "Save the current Natron session to a "
+                            "tooltip": "Save the current Fusion session to a "
                                        "different file name",
                             # will launch wf2 if configured
                             "callback": _get_save_as_action()
@@ -289,7 +290,7 @@ class NatronSessionPublishPlugin(HookBaseClass):
         item.properties["path"] = path
 
         # run the base class validation
-        return super(NatronSessionPublishPlugin, self).validate(settings, item)
+        return super(FusionSessionPublishPlugin, self).validate(settings, item)
 
     def publish(self, settings, item):
         """
@@ -311,12 +312,8 @@ class NatronSessionPublishPlugin(HookBaseClass):
         # update the item with the saved session path
         item.properties["path"] = path
 
-        # add dependencies for the base class to register when publishing
-        item.properties["publish_dependencies"] = \
-            _natron_find_additional_session_dependencies()
-
         # Unfortunately, it seems that the SSL certificate does not work
-        # with the Natron urlib2 library so we force it here
+        # with the Fusion urlib2 library so we force it here
         ssl_cert_file = os.environ.get("SSL_CERT_FILE")
 
         try:
@@ -330,7 +327,7 @@ class NatronSessionPublishPlugin(HookBaseClass):
             pass
 
         # let the base class register the publish
-        super(NatronSessionPublishPlugin, self).publish(settings, item)
+        super(FusionSessionPublishPlugin, self).publish(settings, item)
 
         if ssl_cert_file is None:
             del os.environ["SSL_CERT_FILE"]
@@ -349,34 +346,10 @@ class NatronSessionPublishPlugin(HookBaseClass):
         """
 
         # do the base class finalization
-        super(NatronSessionPublishPlugin, self).finalize(settings, item)
+        super(FusionSessionPublishPlugin, self).finalize(settings, item)
 
         # bump the session file to the next version
         self._save_to_next_version(item.properties["path"], item, _save_session)
-
-
-def _natron_find_additional_session_dependencies():
-    """
-    Find additional dependencies from the session
-    """
-    # Figure out what read nodes are known to the engine and use them
-    # as dependencies
-
-    natron_app = NatronGui.natron.getActiveInstance()
-
-    ref_paths = set()
-    for node in natron_app.getChildren():
-        if node.isReaderNode():
-            file_param = node.getParam('filename')
-            
-            ref_path = file_param.getValue()
-            if isinstance(ref_path, unicode):
-                ref_path = ref_path.encode("utf-8")
-
-            ref_path = ref_path.replace("/", os.path.sep)
-            ref_paths.add(ref_path)
-
-    return list(ref_paths)
 
 
 def _session_path():
@@ -384,11 +357,8 @@ def _session_path():
     Return the path to the current session
     :return:
     """
-    natron_app = NatronGui.natron.getActiveInstance()
-
-    project_name = natron_app.getProjectParam('projectName').getValue()
-    project_path = natron_app.getProjectParam('projectPath').getValue()
-    path = os.path.join(project_path, project_name)
+    comp = fusion.GetCurrentComp()
+    path = comp.GetAttrs()['COMPS_FileName']
 
     if isinstance(path, unicode):
         path = path.encode("utf-8")
@@ -405,11 +375,11 @@ def _save_session(path):
     folder = os.path.dirname(path)
     ensure_folder_exists(folder)
 
-    natron_app = NatronGui.natron.getActiveInstance()
-    natron_app.saveProjectAs(path)
+    comp = fusion.GetCurrentComp()
+    comp.Save(path)
 
 
-# TODO: method duplicated in all the natron hooks
+# TODO: method duplicated in all the fusion hooks
 def _get_save_as_action():
     """
     Simple helper for returning a log action dict for saving the session
@@ -435,15 +405,11 @@ def _get_save_as_action():
 
 
 def _save_as():
-    natron_app = NatronGui.natron.getActiveInstance()
-    app_id= natron_app.getAppID()
-    natron_gui_app = NatronGui.natron.getGuiInstance(app_id)
-    project_path = natron_app.getProjectParam('projectPath').getValue()
+    comp = fusion.GetCurrentComp()
+    path = comp.GetAttrs()['COMPS_FileName']
 
-    # make sure not using unicode!
-    path = natron_gui_app.saveFilenameDialog(project_path, filters=("*.ntp",))
     if isinstance(path, unicode):
         path = path.encode("utf-8")
 
     if path:
-        natron_app.saveProjectAs(path)
+        comp.Save(path)

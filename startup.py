@@ -77,11 +77,17 @@ class FusionLauncher(SoftwareLauncher):
             "FUSION9_MasterPrefs", startup_path
         )
         sgtk.util.append_path_to_env_var(
+            "FUSION16_MasterPrefs", startup_path
+        )
+        sgtk.util.append_path_to_env_var(
              "FUSION_PYTHON27_HOME", "C:/Program Files/Shotgun/Python")
 
         required_env["FUSION9_MasterPrefs"] = os.environ[
             "FUSION9_MasterPrefs"
         ]
+        required_env["FUSION16_MasterPrefs"] = os.environ[
+            "FUSION9_MasterPrefs"
+        ]        
         # Prepare the launch environment with variables required by the
         # classic bootstrap approach.
         self.logger.debug(
@@ -142,12 +148,13 @@ class FusionLauncher(SoftwareLauncher):
         sw_versions = []
 
         for executable_template in executable_templates:
+            executable_template = os.path.expanduser(executable_template)
+            executable_template = os.path.expandvars(executable_template)
 
-            self.logger.debug("Processing template %s.", executable_template)
+            self.logger.debug("Processing template %s", executable_template)
 
             executable_matches = self._glob_and_match(
-                executable_template,
-                self.COMPONENT_REGEX_LOOKUP
+                executable_template, self.COMPONENT_REGEX_LOOKUP
             )
 
             # Extract all products from that executable.

@@ -10,11 +10,9 @@
 
 from tank import Hook
 import os
-import NatronGui
 
-
-__author__ = "Diego Garcia Huerta"
-__email__ = "diegogh2000@gmail.com"
+import BlackmagicFusion as bmd
+fusion = bmd.scriptapp("Fusion")
 
 
 class BreakdownSceneOperations(Hook):
@@ -50,16 +48,19 @@ class BreakdownSceneOperations(Hook):
         # Introspect the natron scene for read and write nodes
         # so we can gather the filenames available.
 
+
         refs = []
-
-        natron_app = NatronGui.natron.getActiveInstance()
-
-        for node in natron_app.getChildren():
-            if node.isWriterNode() or node.isReaderNode():
-                file_param = node.getParam('filename')
-                ref_path = file_param.getValue()
-                ref_path = ref_path.replace("/", os.path.sep)
-                refs.append({"attr": node, "type": "file", "path": ref_path})
+        
+        comp = fusion.GetCurrentComp()
+        toollist = comp.GetToolList().values()
+        comp.Lock()
+        for tool in toollist:
+            if tool.GetAttrs("TOOLS_RegID") in ["Saver", "Loader"]:
+                ref_path = tool.GetAttrs("TOOLST_Clip_Name").values()
+                if ref_path:
+                    ref_path[0].replace("/", os.path.sep)
+                    refs.append({"attr": tool, "type": "file", "path": ref_path[0]})
+        comp.Unlock()
 
         return refs
 

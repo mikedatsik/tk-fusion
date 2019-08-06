@@ -14,110 +14,15 @@ Hook that loads defines all the available actions, broken down by publish type.
 
 import os
 import re
+import glob
 import sgtk
 from sgtk.errors import TankError
-
-import NatronGui
-
-
-__author__ = "Diego Garcia Huerta"
-__email__ = "diegogh2000@gmail.com"
 
 
 HookBaseClass = sgtk.get_hook_baseclass()
 
-lut_extensions = {
-    "fr.inria.openfx.OCIOFileTransform":
-    (".3dl", ".3dl", ".ccc", ".cdl", ".cc", ".csp", ".lut", ".itx",
-     ".cube", ".look", ".mga", ".m3d", ".spi1d", ".spi3d", ".spimtx",
-     ".cub", ".vf")}
 
-image_extensions = {
-    "fr.inria.openfx.ReadOIIO":
-    (".bmp", ".cin", ".dds", ".dpx", ".f3d", ".fits", ".gif", ".hdr", ".ico",
-     ".iff", ".jpg", ".jpe", ".jpeg", ".jif", ".jfif", ".jfi", ".jp2", ".j2k",
-     ".exr", ".png", ".pbm", ".pgm", ".ppm", ".pfm", ".psd", ".pdd", ".psb",
-     ".ptex", ".crw", ".cr2", ".nef", ".raf", ".dng", ".rla", ".sgi", ".rgb",
-     ".rgba", ".bw", ".int", ".inta", ".pic", ".tga", ".tpic", ".tif", ".tiff",
-     ".tx", ".env", ".sm", ".vsm", ".webp", ".zfile"),
-
-    "fr.inria.openfx.OCIOFileTransform":
-    (".3dl", ".ccc", ".cdl", ".cc", ".csp", ".lut", ".itx", ".cube", ".look",
-     ".mga", ".m3d", ".spi1d", ".spi3d", ".spimtx", ".cub", ".vf"),
-
-    "fr.inria.openfx.ReadPDF":
-    (".pdf", ),
-
-    "fr.inria.openfx.ReadCDR":
-    (".cdr", ),
-
-    "fr.inria.openfx.ReadKrita":
-    (".kra", ),
-
-    "net.fxarena.openfx.ReadSVG":
-    (".svg", ),
-
-    "net.fxarena.openfx.ReadPSD":
-    (".psd", ".psb", ".xcf", ".ora"),
-}
-
-
-# snapshot of extensions supported at this time by ffmpeg, used in Natron
-# as indicated in the Natron documentation.
-video_extensions = {"fr.inria.openfx.ReadFFmpeg":
-                    (".3dostr", ".4xm", ".aa", ".aac", ".ac3", ".acm", ".act",
-                     ".adf", ".adp", ".ads", ".adx", ".aea", ".afc", ".aiff",
-                     ".aix", ".alaw", ".alias", ".amr", ".anm", ".apc", ".ape",
-                     ".apng", ".aqtitle", ".asf", ".asf", ".ass", ".ast",
-                     ".au", ".avi", ".avisynth", ".avr", ".avs",
-                     ".bethsoftvid", ".bfi", ".bfstm", ".bin", ".bink",
-                     ".bit", ".bmp", ".bmv", ".boa", ".brender", ".brstm",
-                     ".c93", ".caf", ".cavsvideo", ".cdg", ".cdxl",
-                     ".cine", ".concat", ".dash", ".data", ".daud", ".dcstr",
-                     ".dds", ".dfa", ".dirac", ".dnxhd", ".dpx", ".dsf",
-                     ".dshow", ".dsicin", ".dss", ".dts", ".dtshd", ".dv",
-                     ".dvbsub", ".dvbtxt", ".dxa", ".ea", ".ea", ".eac3",
-                     ".epaf", ".exr", ".f32be", ".f32le", ".f64be", ".f64le",
-                     ".ffm", ".ffmetadata", ".film", ".filmstrip", ".fits",
-                     ".flac", ".flic", ".flv", ".frm", ".fsb", ".g722",
-                     ".g723", ".g726", ".g726le", ".g729", ".gdigrab", ".gdv",
-                     ".genh", ".gif", ".gsm", ".gxf", ".h261", ".h263",
-                     ".h264", ".hevc", ".hls", ".hnm", ".ico", ".idcin",
-                     ".idf", ".iff", ".ilbc", ".image2", ".image2pipe",
-                     ".ingenient", ".ipmovie", ".ircam", ".iss", ".iv8",
-                     ".ivf", ".ivr", ".j2k", ".jacosub", ".jpeg", ".jpegls",
-                     ".jv", ".lavfi", ".live", ".lmlm4", ".loas", ".lrc",
-                     ".lvf", ".lxf", ".m4v", ".matroska", ".mgsts",
-                     ".microdvd", ".mjpeg", ".mjpeg", ".mlp", ".mlv", ".mm",
-                     ".mmf", ".mov", ".mp3", ".mpc", ".mpc8", ".mpeg",
-                     ".mpegts", ".mpegtsraw", ".mpegvideo", ".mpjpeg",
-                     ".mpl2", ".mpsub", ".msf", ".msnwctcp", ".mtaf", ".mtv",
-                     ".mulaw", ".musx", ".mv", ".mvi", ".mxf", ".mxg", ".nc",
-                     ".nistsphere", ".nsv", ".nut", ".nuv", ".ogg", ".oma",
-                     ".paf", ".pam", ".pbm", ".pcx", ".pgm", ".pgmyuv",
-                     ".pictor", ".pjs", ".pmp", ".png", ".ppm", ".psd",
-                     ".psxstr", ".pva", ".pvf", ".qcp", ".qdraw", ".r3d",
-                     ".rawvideo", ".realtext", ".redspark", ".rl2", ".rm",
-                     ".roq", ".rpl", ".rsd", ".rso", ".rtp", ".rtsp",
-                     ".s16be", ".s16le", ".s24be", ".s24le", ".s32be",
-                     ".s32le", ".s337m", ".s8", ".sami", ".sap", ".sbg",
-                     ".scc", ".sdp", ".sdr2", ".sds", ".sdx", ".sgi", ".shn",
-                     ".siff", ".sln", ".smjpeg", ".smk", ".smush", ".sol",
-                     ".sox", ".spdif", ".srt", ".stl", ".subviewer",
-                     ".subviewer1", ".sunrast", ".sup", ".svag", ".svg",
-                     ".swf", ".tak", ".tedcaptions", ".thp", ".tiertexseq",
-                     ".tiff", ".tmv", ".truehd", ".tta", ".tty", ".txd",
-                     ".u16be", ".u16le", ".u24be", ".u24le", ".u32be",
-                     ".u32le", ".u8", ".v210", ".v210x", ".vag", ".vc1",
-                     ".vc1test", ".vfwcap", ".vivo", ".vmd", ".vobsub",
-                     ".voc", ".vpk", ".vplayer", ".vqf", ".w64", ".wav",
-                     ".wc3movie", ".webm", ".webp", ".webvtt", ".wsaud",
-                     ".wsd", ".wsvqa", ".wtv", ".wv", ".wve", ".xa", ".xbin",
-                     ".xmv", ".xpm", ".xvag", ".xwma", ".yop",
-                     ".yuv4mpegpipe", )}
-
-
-class NatronActions(HookBaseClass):
+class FusionActions(HookBaseClass):
     # public interface - to be overridden by deriving classes
 
     def generate_actions(self, sg_publish_data, actions, ui_area):
@@ -260,43 +165,49 @@ class NatronActions(HookBaseClass):
                                 publish fields.
         """
 
-        node_type = None
+        import BlackmagicFusion as bmd
+
+        fusion = bmd.scriptapp("Fusion")
+        comp = fusion.GetCurrentComp()
+
         (_, ext) = os.path.splitext(path)
-        for extensions in (image_extensions,
-                           video_extensions,
-                           lut_extensions):
-            for valid_node_type, valid_extensions in extensions.iteritems():
-                if ext.lower() in valid_extensions:
-                    node_type = valid_node_type
-                    break
 
-        if not node_type:
+        valid_extensions = [".png", 
+                            ".jpg", 
+                            ".jpeg", 
+                            ".exr", 
+                            ".cin", 
+                            ".dpx", 
+                            ".tiff", 
+                            ".tif", 
+                            ".mov",
+                            ".mp4",
+                            ".psd",
+                            ".tga",
+                            ".ari",
+                            ".gif",
+                            ".iff"]
+
+        if ext.lower() not in valid_extensions:
             raise Exception("Unsupported file extension for '%s'!" % path)
-
-        natron_app = NatronGui.natron.getActiveInstance()
-        read_node = natron_app.createNode(node_type)
-
-        if not read_node:
-            raise Exception(
-                "Could not create a node of type '%s'!" % node_type)
-
-        filename_param = read_node.getParam("filename")
-        if filename_param:
-            filename_param.setValue(path)
-        else:
-            raise Exception(
-                "Could not find filename parameter for node '%s'!" % read_node)
 
         # find the sequence range if it has one:
         seq_range = self._find_sequence_range(path)
 
+        comp.Lock()
         if seq_range:
-            firstFrame_param = read_node.getParam("firstFrame")
-            lastFrame_param = read_node.getParam("lastFrame")
-            if firstFrame_param:
-                firstFrame_param.setValue(seq_range[0])
-            if lastFrame_param:
-                lastFrame_param.setValue(seq_range[1])
+            # override the detected frame range.
+            path = path % seq_range[0]
+            loader = comp.Loader({"Clip": path})
+            loader.GlobalIn = seq_range[0]
+            loader.GlobalOut = seq_range[1]
+            loader.ClipTimeStart = 0            
+        else:
+            comp.Loader({"Clip": path})
+        comp.Unlock()
+
+
+
 
     def _sequence_range_from_path(self, path):
         """

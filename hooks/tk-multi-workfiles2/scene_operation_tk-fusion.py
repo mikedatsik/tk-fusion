@@ -75,16 +75,19 @@ class SceneOperation(HookClass):
 
         comp = fusion.GetCurrentComp()
 
+        comp.Lock()
         if operation == "current_path":
             return comp.GetAttrs()['COMPS_FileName']
-
         elif operation == "open":
+            if comp:
+                comp.Close()
             fusion.LoadComp(file_path)
-
         elif operation == "save":
             comp.Save(file_path)
         elif operation == "save_as":
             comp.Save(file_path)
         elif operation == "reset":
-            comp.Save(file_path)
+            if comp:
+                comp.Close()
+            fusion.NewComp()
             return True

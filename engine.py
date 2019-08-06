@@ -323,13 +323,13 @@ class FusionEngine(Engine):
 
         # only create the shotgun menu if not in batch mode and menu doesn't
         # already exist
-        # if self.has_ui:
-        #     # create our menu handler
-        #     tk_fusion = self.import_module("tk_fusion")
+        if self.has_ui:
+            # create our menu handler
+            tk_fusion = self.import_module("tk_fusion")
         #     self._menu_generator = tk_fusion.MenuGenerator(
         #         self, self._menu_name)
         #     self._menu_generator.create_menu(disabled=disabled)
-        #     return True
+            return True
 
         return False
 
@@ -339,22 +339,19 @@ class FusionEngine(Engine):
         """
         from sgtk.platform.qt import QtGui
 
-        qt_app = QtGui.QApplication.instance()
-        if qt_app is None:
+        self._qt_app = QtGui.QApplication.instance()
+        if self._qt_app is None:
             self.log_debug("Initialising main QApplication...")
-            qt_app = QtGui.QApplication([])
-            qt_app.setWindowIcon(QtGui.QIcon(self.icon_256))
-            qt_app.setQuitOnLastWindowClosed(True)
+            self._qt_app = QtGui.QApplication(sys.argv)
+            self._qt_app.setWindowIcon(QtGui.QIcon(self.icon_256))
+            self._qt_app.setQuitOnLastWindowClosed(True)
 
             # set up the dark style
-            # self._initialize_dark_look_and_feel()
-            # wid = QtGui.QWidget()
-            # wid.resize(250, 150)
-            # wid.setWindowTitle('Simple')
-            # wid.show()
+            self._initialize_dark_look_and_feel()
+            self._qt_app.aboutToQuit.connect(self._qt_app.deleteLater)
 
-            # sys.exit(qt_app.exec_())
-        # pyqt_fusion.exec_(qt_app)
+        # _qt_app.exec_()
+        # pyqt_fusion.exec_(_qt_app)
 
     def post_app_init(self):
         """
@@ -368,6 +365,8 @@ class FusionEngine(Engine):
 
         # Run a series of app instance commands at startup.
         self._run_app_instance_commands()
+
+        # self._qt_app.exec_()
 
     def post_context_change(self, old_context, new_context):
         """
@@ -383,19 +382,19 @@ class FusionEngine(Engine):
         self.__register_open_log_folder_command()
         self.__register_reload_command()
 
-        if self.get_setting("automatic_context_switch", True):
-            fusion.shotgun._engine_instance = self.instance_name
-            fusion.shotgun._menu_name = self._menu_name
-            fusion.shotgun._new_context = new_context
+        # if self.get_setting("automatic_context_switch", True):
+        #     fusion.shotgun._engine_instance = self.instance_name
+        #     fusion.shotgun._menu_name = self._menu_name
+        #     fusion.shotgun._new_context = new_context
 
-            self.logger.debug(
-                "Registered new open and save callbacks before "
-                "changing context."
-            )
+        #     self.logger.debug(
+        #         "Registered new open and save callbacks before "
+        #         "changing context."
+        #     )
 
-            # finally create the menu with the new context if needed
-            if old_context != new_context:
-                self.create_shotgun_menu()
+        #     # finally create the menu with the new context if needed
+        #     if old_context != new_context:
+        #         self.create_shotgun_menu()
 
     def _run_app_instance_commands(self):
         """

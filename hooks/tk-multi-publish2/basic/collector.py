@@ -12,14 +12,14 @@ import glob
 import os
 import sgtk
 
-import NatronGui
+import BlackmagicFusion as bmd
 
 HookBaseClass = sgtk.get_hook_baseclass()
 
 
-class NatronSessionCollector(HookBaseClass):
+class FusionSessionCollector(HookBaseClass):
     """
-    Collector that operates on the natron session. Should inherit from the basic
+    Collector that operates on the fusion session. Should inherit from the basic
     collector hook.
     """
 
@@ -44,10 +44,10 @@ class NatronSessionCollector(HookBaseClass):
         """
 
         # grab any base class settings
-        collector_settings = super(NatronSessionCollector, self).settings or {}
+        collector_settings = super(FusionSessionCollector, self).settings or {}
 
         # settings specific to this collector
-        natron_session_settings = {
+        fusion_session_settings = {
             "Work Template": {
                 "type": "template",
                 "default": None,
@@ -60,13 +60,13 @@ class NatronSessionCollector(HookBaseClass):
         }
 
         # update the base settings with these settings
-        collector_settings.update(natron_session_settings)
+        collector_settings.update(fusion_session_settings)
 
         return collector_settings
 
     def process_current_session(self, settings, parent_item):
         """
-        Analyzes the current session open in Natron and parents a subtree of
+        Analyzes the current session open in Fusion and parents a subtree of
         items under the parent_item passed in.
 
         :param dict settings: Configured settings for this collector
@@ -74,16 +74,16 @@ class NatronSessionCollector(HookBaseClass):
 
         """
 
-        # create an item representing the current natron session
-        item = self.collect_current_natron_session(settings, parent_item)
+        # create an item representing the current fusion session
+        item = self.collect_current_fusion_session(settings, parent_item)
 
-    def collect_current_natron_session(self, settings, parent_item):
+    def collect_current_fusion_session(self, settings, parent_item):
         """
-        Creates an item that represents the current natron session.
+        Creates an item that represents the current fusion session.
 
         :param parent_item: Parent Item instance
 
-        :returns: Item of type natron.session
+        :returns: Item of type fusion.session
         """
 
         publisher = self.parent
@@ -96,12 +96,12 @@ class NatronSessionCollector(HookBaseClass):
             file_info = publisher.util.get_file_path_components(path)
             display_name = file_info["filename"]
         else:
-            display_name = "Current Natron Session"
+            display_name = "Current Fusion Session"
 
         # create the session item for the publish hierarchy
         session_item = parent_item.create_item(
-            "natron.session",
-            "Natron Session",
+            "fusion.session",
+            "Fusion Session",
             display_name
         )
 
@@ -110,7 +110,7 @@ class NatronSessionCollector(HookBaseClass):
             self.disk_location,
             os.pardir,
             "icons",
-            "natron.png"
+            "fusion.png"
         )
         session_item.set_icon_from_path(icon_path)
 
@@ -128,10 +128,10 @@ class NatronSessionCollector(HookBaseClass):
             # the attached publish plugins will need to resolve the fields at
             # execution time.
             session_item.properties["work_template"] = work_template
-            session_item.properties["publish_type"] = "Natron Project File"
-            self.logger.debug("Work template defined for Natron collection.")
+            session_item.properties["publish_type"] = "Fusion Composition"
+            self.logger.debug("Work template defined for Fusion collection.")
 
-        self.logger.info("Collected current Natron scene")
+        self.logger.info("Collected current Fusion scene")
 
         return session_item
 
@@ -140,11 +140,10 @@ def _session_path():
     Return the path to the current session
     :return:
     """
-    natron_app = NatronGui.natron.getActiveInstance()
-
-    project_name = natron_app.getProjectParam('projectName').getValue()
-    project_path = natron_app.getProjectParam('projectPath').getValue()
-    path = os.path.join(project_path, project_name)
+    fusion = bmd.scriptapp("Fusion")
+    comp = fusion.GetCurrentComp()
+    
+    path = comp.GetAttrs()['COMPS_FileName']
 
     if isinstance(path, unicode):
         path = path.encode("utf-8")
