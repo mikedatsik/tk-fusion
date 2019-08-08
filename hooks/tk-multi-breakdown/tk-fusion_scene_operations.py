@@ -10,6 +10,7 @@
 
 from tank import Hook
 import os
+import re
 
 import BlackmagicFusion as bmd
 fusion = bmd.scriptapp("Fusion")
@@ -52,14 +53,12 @@ class BreakdownSceneOperations(Hook):
         refs = []
         
         comp = fusion.GetCurrentComp()
-        toollist = comp.GetToolList().values()
         comp.Lock()
-        for tool in toollist:
-            if tool.GetAttrs("TOOLS_RegID") in ["Saver", "Loader"]:
-                ref_path = tool.GetAttrs("TOOLST_Clip_Name").values()
-                if ref_path:
-                    ref_path[0].replace("/", os.path.sep)
-                    refs.append({"attr": tool, "type": "file", "path": ref_path[0]})
+        for tool in comp.GetToolList(False, "Loader").values():
+            ref_path = tool.GetAttrs("TOOLST_Clip_Name").values()
+            if ref_path:
+                ref_path[0].replace("/", os.path.sep)
+                refs.append({"node": tool.GetAttrs("TOOLS_Name"), "type": "file", "path": ref_path[0]})
         comp.Unlock()
 
         return refs
@@ -76,15 +75,35 @@ class BreakdownSceneOperations(Hook):
         the that each attribute should be updated *to* rather than the current
         path.
         """
-
+        comp = fusion.GetCurrentComp()
         engine = self.parent.engine
 
+        loaders = {}
+        for x in comp.GetToolList(False, "Loader").values():
+            loaders[x.GetAttrs("TOOLS_Name")] = x
+
         for i in items:
-            node = i["attr"]
+            engine.log_debug(
+                    "File Updating to version %s" % i)     
+ 
+            node = i["node"]
             node_type = i["type"]
             new_path = i["path"]
-
+            
             if node_type == "file":
-                engine.log_debug(
-                    "File %s: Updating to version %s" % (attr, new_path))
-                attr.setValue(new_path)
+                loader = loaders[node]
+                if loader:
+                    engine.log_debug(
+                        "File %s: Updating to version %s" % (node, new_path))
+                    comp.Lock()
+                    globalIn = int(loader.GlobalIn[comp.CurrentTime])
+                    globalOut = int(loader.GlobalIn[comp.CurrentTime])
+                    trimIn = int(loader.ClipTimeStart[comp.CurrentTime])
+                    trimOut = int(loader.ClipTimeEnd[comp.CurrentTime])
+                    new_path = re.sub(r'%(\d+)d', str(globalIn), new_path)
+                    loader.Clip = new_path
+                    loader.GlobalIn = globalIn
+                    loader.GlobalOut = globalOut
+                    loader.ClipTimeStart = trimIn
+                    loader.ClipTimeEnd = trimOut              
+                    comp.Unlock()

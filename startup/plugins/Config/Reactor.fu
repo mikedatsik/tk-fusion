@@ -1,0 +1,938 @@
+--[[--
+==============================================================================
+Reactor Package Manager for Fusion - v3 2019-05-23
+==============================================================================
+Requires    : Fusion 9.0.2+
+Created by  : We Suck Less Community   [https://www.steakunderwater.com]
+            : Pieter Van Houte         [pieter@steakunderwater.com]
+            : Andrew Hazelden          [andrew@andrewhazelden.com]
+
+==============================================================================
+Overview
+==============================================================================
+Reactor is a package manager for Fusion and Resolve. Reactor streamlines the installation of 3rd party content through the use of "Atom" packages that are synced automatically with a Git repository.
+
+Reactor GitLab Public Repository:
+https://gitlab.com/WeSuckLess/Reactor
+
+Reactor Support Forum:
+https://www.steakunderwater.com/wesuckless/viewforum.php?f=32
+
+==============================================================================
+Installation
+==============================================================================
+Copy the `Reactor.fu` file into the Fusion user preferences based `Config:/` PathMap directory, or the "Config" subfolder in the Fusion installation folder:
+
+(Windows) C:\Program Files\Blackmagic Design\Fusion 9\Config\
+(Linux)   /opt/BlackmagicDesign/Fusion9/Config/
+(Mac)     /Applications/Blackmagic Fusion 9/Fusion.app/Contents/MacOS/Config/
+
+You may have to create this folder if it does not exist yet.
+
+Restart Fusion after the installation is complete.
+
+==============================================================================
+Reactor Usage
+==============================================================================
+After Reactor.fu is installed on your system and you restart Fusion once you will see a new "Reactor" menu item is added to Fusion's menu bar.
+
+The main Reactor Package Manager window is opened by selecting the "Reactor > Open Reactor..." menu item.
+
+The "Reactor > Show Reactor Folder" menu item allows you to quickly view the "AllData:/Reactor/" PathMap folder location where the Reactor "atom" packages are downloaded and installed.
+
+The "AllData:/Reactor/" PathMap folder location is:
+
+(Windows) C:\ProgramData\Blackmagic Design\Fusion\Reactor\
+(Linux) /var/BlackmagicDesign/Fusion/Reactor/
+(Mac) /Library/Application Support/Blackmagic Design/Fusion/
+
+==============================================================================
+Environment Variables
+==============================================================================
+The `REACTOR_DEBUG` environment variable can be set to true if you want to see more verbose Console logging output when you run the Reactor GUI:
+
+export REACTOR_DEBUG=true
+
+The `REACTOR_DEBUG` environment variable also tells Reactor to provide a status message in the Reactor package manager progress dialog that lists each file as it is being installed. This is handy if you are installing a lot of `Bin` category Reactor atoms that can be hundreds of megabytes in size.
+
+
+The `REACTOR_DEBUG_FILES` environment variable can be set to true if you want to see Console logging output that shows each of the cURL based file download operations. When the environment variable is set to true Reactor will print the contents of the files as they are downloaded and written to disk. This debugging information is useful for spotting formatting issues and "Error 404" states when a file has trouble successfully downloading from GitLab:
+
+export REACTOR_DEBUG_FILES=true
+
+The `REACTOR_BRANCH` environment variable can be set to a custom value like "dev" to override the default master branch setting for syncing with the GitLab repo:
+
+export REACTOR_BRANCH=dev
+
+
+The `REACTOR_INSTALL_PATHMAP` environment variable can be used to change the Reactor installation location to something other then the default PathMap value of "AllData:"
+
+export REACTOR_INSTALL_PATHMAP=AllData:
+
+
+Note: If you are using macOS you will need to use an approach like a LaunchAgents file to define the environment variables as Fusion + Lua tends to ignore .bash_profile based environment variables entries.
+]]--
+
+{
+	Action
+	{
+		ID = "Reactor_Open",
+		Category = "Reactor",
+		Name = "Open Reactor...",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					-- Choose the GitLab based Project ID that should be used to download "Reactor.lua"
+					-- Reactor GitLab Project ID
+					local reactor_project_id = "5058837"
+
+					-- The release_mode is used to toggle Reactor between a "public" vs "dev" state.
+					-- In the "public" mode a GitLab Token ID is not required.
+					local release_mode = "public"
+					-- local release_mode = "dev"
+
+
+					ffi = require "ffi"
+					curl = require "lj2curl"
+					ezreq = require "lj2curl.CRLEasyRequest"
+
+					local separator = package.config:sub(1,1)
+					local local_system = os.getenv("REACTOR_LOCAL_SYSTEM")
+
+					-- Check for a pre-existing PathMap preference
+					local reactor_existing_pathmap = app:GetPrefs("Global.Paths.Map.Reactor:")
+					if reactor_existing_pathmap and reactor_existing_pathmap ~= "nil" then
+						-- Clip off the "reactor_root" style trailing "Reactor/" subfolder
+						reactor_existing_pathmap = string.gsub(reactor_existing_pathmap, "Reactor" .. separator .. "$", "")
+					end
+
+					local reactor_pathmap = os.getenv("REACTOR_INSTALL_PATHMAP") or reactor_existing_pathmap or "AllData:"
+					local path = app:MapPath(tostring(reactor_pathmap) .. "Reactor/System/")
+					local destFile = path .. "Reactor.lua"
+
+					local branch = os.getenv("REACTOR_BRANCH")
+					if branch == nil then
+						branch = "master"
+					end
+
+					bmd.createdir(path)
+
+					local config = bmd.readfile(path .. "Reactor.cfg")
+
+					local token = config and ((config.Repos and config.Repos._Core and config.Repos._Core.Token) or (config.Settings and config.Settings.Reactor and config.Settings.Reactor.Token))
+
+					if not token and release_mode ~= "public" then
+						error("[Reactor Error] No private GitLab token was found in the config file. Please edit " .. path .. "Reactor.cfg and add your token.")
+					end
+
+					if local_system then
+						local file = io.open(local_system .. separator .. "Reactor.lua", "r")
+						local str = nil
+
+						if file then
+							str = file:read("*all")
+							file:close()
+						else
+							print("[Reactor Error] Disk permissions error reading local_system path ", local_system)
+							os.exit()
+						end
+
+						file = io.open(destFile, "w")
+						if file then
+							file:write(str)
+							file:close()
+							target:RunScript(destFile)
+						else
+							print("[Reactor Error] Disk permissions error when saving: ", destFile)
+							os.exit()
+						end
+					else
+						local url = "https://gitlab.com/api/v4/projects/" .. reactor_project_id .. "/repository/files/System%2FReactor%2Elua/raw?ref=" .. branch
+
+						if token then
+							url = url .. "&private_token=" .. token
+						end
+
+						local file = io.open(destFile, "r")
+						local doFetch = true -- file == nil or file:read(1) == nil
+
+						if file then
+							file:close()
+						end
+
+						if doFetch then
+							local req = ezreq(url)
+
+							local body = {}
+
+							req:setOption(curl.CURLOPT_SSL_VERIFYPEER, 0)
+							req:setOption(curl.CURLOPT_WRITEFUNCTION, ffi.cast("curl_write_callback",
+								function(buffer, size, nitems, userdata)
+									table.insert(body, ffi.string(buffer, size*nitems))
+									return nitems;
+								end))
+
+							ok, err = req:perform()
+							if ok then
+								-- Check if the Reactor.lua file was downloaded correctly
+								if table.concat(body) == [[{"message":"401 Unauthorized"}]] then
+									error("[Reactor Download Failed] 401 Unauthorized\n\n[Pro Tip] You should double check that you are syncing with the Reactor public repository in your \"Config:/Reactor.fu\" and \"Reactor:/System/Reactor.cfg\" files.")
+								elseif table.concat(body) == [[{"message":"404 Project Not Found"}]] then
+									error("[Reactor Download Failed] 404 GitLab Project Not Found\n\n[Pro Tip] You should double check that you are syncing with the Reactor public repository in your \"Config:/Reactor.fu\" and \"Reactor:/System/Reactor.cfg\" files.")
+								elseif table.concat(body) == [[{"message":"404 File Not Found"}]] then
+									error("[Reactor Download Failed] 404 File Not Found\n\n[Pro Tip] The main Reactor GitLab file has been renamed. Please download and install a new Reactor Installer script or you can try manually installing the latest Reactor.fu file.")
+								elseif table.concat(body) == [[{"error":"invalid_token","error_description":"Token was revoked. You have to re-authorize from the user."}]] then
+									error("[Reactor Download Failed] GitLab TokenID Revoked Error\n\n[Pro Tip] Your GitLab TokenID has been revoked. Please enter a new TokenID value in your Reactor.cfg file, or switch to the Reactor Public repo and remove your existing Reactor.cfg file.")
+								elseif table.concat(body) == [[{"message":"404 Commit Not Found"}]] then
+									error("[Reactor Download Failed] GitLab Previous CommitID Empty Error\n\n[Pro Tip] Please remove your existing Reactor.cfg file and try again. Alternativly, you may have a REACTOR_BRANCH environment variable active and it is requesting a branch that does not exist.")
+								elseif table.concat(body) == [[{"error":"insufficient_scope","error_description":"The request requires higher privileges than provided by the access token.","scope":"api"}]] then
+									error("[Reactor Download Failed] GitLab TokenID Permissions Scope Error\n\n[Pro Tip] Your current GitLab TokenID privileges do not grant you access to this repository.")
+								else
+									local file = io.open(destFile, "w")
+									if file then
+										file:write(table.concat(body))
+										file:close()
+										target:RunScript(destFile)
+									else
+										print("[Reactor Error] Disk permissions error when saving: ", destFile)
+									end
+								end
+							else
+								print("[Reactor Error] Fetch Failed: ", err)
+							end
+						else
+							target:RunScript(destFile)
+						end
+					end
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Reactor_Reinstall_Reactor",
+		Category = "Reactor",
+		Name = "Reinstall Reactor",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					-- Choose the GitLab based Project ID that should be used to download the "Reactor Installer" Lua script.
+					-- Reactor GitLab Project ID
+					local reactor_project_id = "5058837"
+
+					-- The release_mode is used to toggle Reactor between a "public" vs "dev" state.
+					-- In the "public" mode a GitLab Token ID is not required.
+					local release_mode = "public"
+					-- local release_mode = "dev"
+
+
+					ffi = require "ffi"
+					curl = require "lj2curl"
+					ezreq = require "lj2curl.CRLEasyRequest"
+
+					local function EncodeURL(txt)
+						if txt ~= nil then
+							urlCharacters = {
+								{pattern = '[/]', replace = '%%2F'},
+								{pattern = '[.]', replace = '%%2E'},
+								{pattern = '[ ]', replace = '%%20'},
+							}
+
+							for i,val in ipairs(urlCharacters) do
+								txt = string.gsub(txt, urlCharacters[i].pattern, urlCharacters[i].replace)
+							end
+						end
+
+						return txt
+					end
+
+					local separator = package.config:sub(1,1)
+					local local_system = os.getenv("REACTOR_LOCAL_SYSTEM")
+
+					-- Check for a pre-existing PathMap preference
+					local reactor_existing_pathmap = app:GetPrefs("Global.Paths.Map.Reactor:")
+					if reactor_existing_pathmap and reactor_existing_pathmap ~= "nil" then
+						-- Clip off the "reactor_root" style trailing "Reactor/" subfolder
+						reactor_existing_pathmap = string.gsub(reactor_existing_pathmap, "Reactor" .. separator .. "$", "")
+					end
+
+					local reactor_pathmap = os.getenv("REACTOR_INSTALL_PATHMAP") or reactor_existing_pathmap or "AllData:"
+					local path = app:MapPath(tostring(reactor_pathmap) .. "Reactor/System/")
+
+					local installer_path = app:MapPath("Temp:/Reactor/")
+					local destFile = installer_path .. "Reactor-Installer.lua"
+
+					local sourceGitFile = ""
+					if reactor_project_id == "4405807" then
+						sourceGitFile = EncodeURL("Reactor-Installer/Reactor-Dev-Installer.lua")
+					elseif reactor_project_id == "5273696" then
+						sourceGitFile = EncodeURL("Reactor-Test-Installer.lua")
+					else
+						-- Reactor Public
+						-- Reactor GitLab Project ID 5058837
+						sourceGitFile = EncodeURL("Reactor-Installer.lua")
+					end
+
+					if not target then
+						target = app
+					end
+
+					local branch = os.getenv("REACTOR_BRANCH")
+					if branch == nil then
+						branch = "master"
+					end
+
+					-- Create the "Reactor:/System/" folder
+					bmd.createdir(path)
+
+					-- Create the "Temp:/Reactor/" folder
+					bmd.createdir(installer_path)
+
+					local config = bmd.readfile(path .. "Reactor.cfg")
+
+					local token = config and ((config.Repos and config.Repos._Core and config.Repos._Core.Token) or (config.Settings and config.Settings.Reactor and config.Settings.Reactor.Token))
+
+					-- Skip checking for the GitLab Token ID when Reactor is running in the public mode.
+					if not token and release_mode ~= "public" then
+						error("[Reactor Error] No private GitLab token was found in the config file. Please edit " .. path .. "Reactor.cfg and add your token.")
+					end
+
+					if not local_system then
+						local url = "https://gitlab.com/api/v4/projects/" .. reactor_project_id .. "/repository/files/" .. sourceGitFile .. "/raw?ref=" .. branch
+
+						if token then
+							url = url .. "&private_token=" .. token
+						end
+						print("[Download URL] " .. url)
+
+						local file = io.open(destFile, "r")
+						local doFetch = true -- file == nil or file:read(1) == nil
+
+						if file then
+							file:close()
+						end
+
+						if doFetch then
+							local req = ezreq(url)
+
+							local body = {}
+
+							req:setOption(curl.CURLOPT_SSL_VERIFYPEER, 0)
+							req:setOption(curl.CURLOPT_WRITEFUNCTION, ffi.cast("curl_write_callback",
+								function(buffer, size, nitems, userdata)
+									table.insert(body, ffi.string(buffer, size*nitems))
+									return nitems;
+								end))
+
+							ok, err = req:perform()
+							if ok then
+								-- Check if the Reactor.lua file was downloaded correctly
+								if table.concat(body) == [[{"message":"401 Unauthorized"}]] then
+									error("[Reactor Download Failed] 401 Unauthorized\n\n[Pro Tip] You should double check that you are syncing with the Reactor public repository in your \"Config:/Reactor.fu\" and \"Reactor:/System/Reactor.cfg\" files.")
+								elseif table.concat(body) == [[{"message":"404 Project Not Found"}]] then
+									error("[Reactor Download Failed] 404 GitLab Project Not Found\n\n[Pro Tip] You should double check that you are syncing with the Reactor public repository in your \"Config:/Reactor.fu\" and \"Reactor:/System/Reactor.cfg\" files.")
+								elseif table.concat(body) == [[{"message":"404 File Not Found"}]] then
+									error("[Reactor Download Failed] 404 File Not Found\n\n[Pro Tip] The main Reactor GitLab file has been renamed. Please download and install a new Reactor Installer script or you can try manually installing the latest Reactor.fu file.")
+								elseif table.concat(body) == [[{"error":"invalid_token","error_description":"Token was revoked. You have to re-authorize from the user."}]] then
+									error("[Reactor Download Failed] GitLab TokenID Revoked Error\n\n[Pro Tip] Your GitLab TokenID has been revoked. Please enter a new TokenID value in your Reactor.cfg file, or switch to the Reactor Public repo and remove your existing Reactor.cfg file.")
+								elseif table.concat(body) == [[{"message":"404 Commit Not Found"}]] then
+									error("[Reactor Download Failed] GitLab Previous CommitID Empty Error\n\n[Pro Tip] Please remove your existing Reactor.cfg file and try again. Alternativly, you may have a REACTOR_BRANCH environment variable active and it is requesting a branch that does not exist.")
+								elseif table.concat(body) == [[{"error":"insufficient_scope","error_description":"The request requires higher privileges than provided by the access token.","scope":"api"}]] then
+									error("[Reactor Download Failed] GitLab TokenID Permissions Scope Error\n\n[Pro Tip] Your GitLab TokenID privileges do not grant you access to this repository.")
+								else
+									local file = io.open(destFile, "w")
+									if file then
+										file:write(table.concat(body))
+										file:close()
+										target:RunScript(destFile)
+									else
+										print("[Reactor Error] Disk permissions error when saving: ", destFile)
+									end
+								end
+							else
+								print("[Reactor Error] Fetch Failed: ", err)
+							end
+						else
+							target:RunScript(destFile)
+						end
+					end
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Reactor_Atomizer",
+		Category = "Reactor",
+		Name = "Atomizer",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					local separator = package.config:sub(1,1)
+					-- Check for a pre-existing PathMap preference
+					local reactor_existing_pathmap = app:GetPrefs("Global.Paths.Map.Reactor:")
+					if reactor_existing_pathmap and reactor_existing_pathmap ~= "nil" then
+						-- Clip off the "reactor_root" style trailing "Reactor/" subfolder
+						reactor_existing_pathmap = string.gsub(reactor_existing_pathmap, "Reactor" .. separator .. "$", "")
+					end
+
+					local reactor_pathmap = os.getenv("REACTOR_INSTALL_PATHMAP") or reactor_existing_pathmap or "AllData:"
+					local scriptPath = app:MapPath(tostring(reactor_pathmap) .. "Reactor/System/UI/Atomizer.lua")
+					if bmd.fileexists(scriptPath) == false then
+						print("[Reactor Error] Open the Reactor window once to download the missing file: " .. scriptPath)
+					else
+						target:RunScript(scriptPath)
+					end
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Reactor_Fuse_Scanner",
+		Category = "Reactor",
+		Name = "Fuse Scanner",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					local separator = package.config:sub(1,1)
+					-- Check for a pre-existing PathMap preference
+					local reactor_existing_pathmap = app:GetPrefs("Global.Paths.Map.Reactor:")
+					if reactor_existing_pathmap and reactor_existing_pathmap ~= "nil" then
+						-- Clip off the "reactor_root" style trailing "Reactor/" subfolder
+						reactor_existing_pathmap = string.gsub(reactor_existing_pathmap, "Reactor" .. separator .. "$", "")
+					end
+
+					local reactor_pathmap = os.getenv("REACTOR_INSTALL_PATHMAP") or reactor_existing_pathmap or "AllData:"
+					local scriptPath = app:MapPath(tostring(reactor_pathmap) .. "Reactor/System/UI/Fuse Scanner.lua")
+					if bmd.fileexists(scriptPath) == false then
+						print("[Reactor Error] Open the Reactor window once to download the missing file: " .. scriptPath)
+					else
+						target:RunScript(scriptPath)
+					end
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Reactor_Macro_Scanner",
+		Category = "Reactor",
+		Name = "Macro Scanner",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					local separator = package.config:sub(1,1)
+					-- Check for a pre-existing PathMap preference
+					local reactor_existing_pathmap = app:GetPrefs("Global.Paths.Map.Reactor:")
+					if reactor_existing_pathmap and reactor_existing_pathmap ~= "nil" then
+						-- Clip off the "reactor_root" style trailing "Reactor/" subfolder
+						reactor_existing_pathmap = string.gsub(reactor_existing_pathmap, "Reactor" .. separator .. "$", "")
+					end
+
+					local reactor_pathmap = os.getenv("REACTOR_INSTALL_PATHMAP") or reactor_existing_pathmap or "AllData:"
+					local scriptPath = app:MapPath(tostring(reactor_pathmap) .. "Reactor/System/UI/Macro Scanner.lua")
+					if bmd.fileexists(scriptPath) == false then
+						print("[Reactor Error] Open the Reactor window once to download the missing file: " .. scriptPath)
+					else
+						target:RunScript(scriptPath)
+					end
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Reactor_Plugin_Scanner",
+		Category = "Reactor",
+		Name = "Plugin Scanner",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					local separator = package.config:sub(1,1)
+					-- Check for a pre-existing PathMap preference
+					local reactor_existing_pathmap = app:GetPrefs("Global.Paths.Map.Reactor:")
+					if reactor_existing_pathmap and reactor_existing_pathmap ~= "nil" then
+						-- Clip off the "reactor_root" style trailing "Reactor/" subfolder
+						reactor_existing_pathmap = string.gsub(reactor_existing_pathmap, "Reactor" .. separator .. "$", "")
+					end
+
+					local reactor_pathmap = os.getenv("REACTOR_INSTALL_PATHMAP") or reactor_existing_pathmap or "AllData:"
+					local scriptPath = app:MapPath(tostring(reactor_pathmap) .. "Reactor/System/UI/Plugin Scanner.lua")
+					if bmd.fileexists(scriptPath) == false then
+						print("[Reactor Error] Open the Reactor window once to download the missing file: " .. scriptPath)
+					else
+						target:RunScript(scriptPath)
+					end
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Reactor_Folder",
+		Category = "Reactor",
+		Name = "Show Reactor Folder",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					local separator = package.config:sub(1,1)
+					-- Check for a pre-existing PathMap preference
+					local reactor_existing_pathmap = app:GetPrefs("Global.Paths.Map.Reactor:")
+					if reactor_existing_pathmap and reactor_existing_pathmap ~= "nil" then
+						-- Clip off the "reactor_root" style trailing "Reactor/" subfolder
+						reactor_existing_pathmap = string.gsub(reactor_existing_pathmap, "Reactor" .. separator .. "$", "")
+					end
+
+					local reactor_pathmap = os.getenv("REACTOR_INSTALL_PATHMAP") or reactor_existing_pathmap or "AllData:"
+					local path = app:MapPath(tostring(reactor_pathmap) .. "Reactor/")
+					if bmd.direxists(path) == false then
+						bmd.createdir(path)
+						print("[Created Reactor Folder] " .. path)
+					end
+
+					print("[Show Reactor Folder] " .. path)
+					bmd.openfileexternal("Open", path)
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Reactor_Docs_Folder",
+		Category = "Reactor",
+		Name = "Show Docs Folder",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					local separator = package.config:sub(1,1)
+					-- Check for a pre-existing PathMap preference
+					local reactor_existing_pathmap = app:GetPrefs("Global.Paths.Map.Reactor:")
+					if reactor_existing_pathmap and reactor_existing_pathmap ~= "nil" then
+						-- Clip off the "reactor_root" style trailing "Reactor/" subfolder
+						reactor_existing_pathmap = string.gsub(reactor_existing_pathmap, "Reactor" .. separator .. "$", "")
+					end
+
+					local reactor_pathmap = os.getenv("REACTOR_INSTALL_PATHMAP") or reactor_existing_pathmap or "AllData:"
+					local path = app:MapPath(tostring(reactor_pathmap) .. "Reactor/Deploy/Docs/")
+					if bmd.direxists(path) == false then
+						bmd.createdir(path)
+						print("[Created Reactor Folder] " .. path)
+					end
+
+					print("[Show Reactor Folder] " .. path)
+					bmd.openfileexternal("Open", path)
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Reactor_Comps_Folder",
+		Category = "Reactor",
+		Name = "Show Comps Folder",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					local separator = package.config:sub(1,1)
+					-- Check for a pre-existing PathMap preference
+					local reactor_existing_pathmap = app:GetPrefs("Global.Paths.Map.Reactor:")
+					if reactor_existing_pathmap and reactor_existing_pathmap ~= "nil" then
+						-- Clip off the "reactor_root" style trailing "Reactor/" subfolder
+						reactor_existing_pathmap = string.gsub(reactor_existing_pathmap, "Reactor" .. separator .. "$", "")
+					end
+
+					local reactor_pathmap = os.getenv("REACTOR_INSTALL_PATHMAP") or reactor_existing_pathmap or "AllData:"
+					local path = app:MapPath(tostring(reactor_pathmap) .. "Reactor/Deploy/Comps/")
+					if bmd.direxists(path) == false then
+						bmd.createdir(path)
+						print("[Created Reactor Folder] " .. path)
+					end
+
+					print("[Show Reactor Comps Folder] " .. path)
+					bmd.openfileexternal("Open", path)
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Reactor_Config_Folder",
+		Category = "Reactor",
+		Name = "Show Config Folder",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					local path = app:MapPath("Config:/")
+					if bmd.direxists(path) == false then
+						bmd.createdir(path)
+						print("[Created Reactor Folder] " .. path)
+					end
+
+					print("[Show Config Folder] " .. path)
+					bmd.openfileexternal("Open", path)
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Reactor_Temp_Folder",
+		Category = "Reactor",
+		Name = "Show Temp Folder",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					local path = app:MapPath("Temp:/Reactor/")
+					if bmd.direxists(path) == false then
+						bmd.createdir(path)
+						print("[Created Reactor Folder] " .. path)
+					end
+
+					print("[Show Reactor Folder] " .. path)
+					bmd.openfileexternal("Open", path)
+				]=],
+			},
+		},
+	},
+	Action {
+		ID = "Reactor_Resync",
+		Category = "Reactor",
+		Name = "Resync Repository",
+
+		Targets = {
+			Composition = {
+				Execute = _Lua [=[
+					local separator = package.config:sub(1,1)
+					-- Check for a pre-existing PathMap preference
+					local reactor_existing_pathmap = app:GetPrefs("Global.Paths.Map.Reactor:")
+					if reactor_existing_pathmap and reactor_existing_pathmap ~= "nil" then
+						-- Clip off the "reactor_root" style trailing "Reactor/" subfolder
+						reactor_existing_pathmap = string.gsub(reactor_existing_pathmap, "Reactor" .. separator .. "$", "")
+					end
+
+					local reactor_pathmap = os.getenv("REACTOR_INSTALL_PATHMAP") or reactor_existing_pathmap or "AllData:"
+					local scriptPath = app:MapPath(tostring(reactor_pathmap) .. "Reactor/System/UI/ResyncRepository.lua")
+					if bmd.fileexists(scriptPath) == false then
+						print("[Reactor Error] Open the Reactor window once to download the missing file: " .. scriptPath)
+					else
+						target:RunScript(scriptPath)
+					end
+				]=],
+			},
+		},
+	},
+	Action {
+		ID = "Reactor_Open_Reactor_Log",
+		Category = "Reactor",
+		Name = "Open Reactor Log",
+
+		Targets = {
+			Composition = {
+				Execute = _Lua [=[
+					local reactor_log = app:MapPath("Temp:/Reactor/ReactorLog.txt")
+					if os.getenv("REACTOR_DEBUG") ~= "true" then
+						-- Logging is disabled
+						print("[Reactor Log] You need to enable the \"REACTOR_DEBUG\" environment variable to turn on Reactor file logging.")
+					else
+						if bmd.fileexists(reactor_log) == false then
+							print("[Reactor Log] Log File Missing: " .. reactor_log)
+						else
+							bmd.openfileexternal("Open", app:MapPath(reactor_log))
+							print("[Reactor Log] " .. reactor_log .. '\n')
+						end
+					end
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Resources_Reactor_Online_Repository",
+		Category = "Reactor",
+		Name = "Reactor Online Repository",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					platform = (FuPLATFORM_WINDOWS and "Windows") or (FuPLATFORM_MAC and "Mac") or (FuPLATFORM_LINUX and "Linux")
+					function OpenURL(siteName, path)
+						if platform == "Windows" then
+							-- Running on Windows
+							command = "explorer \"" .. path .. "\""
+						elseif platform == "Mac" then
+							-- Running on Mac
+							command = "open \"" .. path .. "\" &"
+						 elseif platform == "Linux" then
+							-- Running on Linux
+							command = "xdg-open \"" .. path .. "\" &"
+						else
+							print("[Error] There is an invalid Fusion platform detected")
+							return
+						end
+						os.execute(command)
+						-- print("[Launch Command] ", command)
+						print("[Opening URL] [" .. siteName .. "] " .. path)
+					end
+
+					OpenURL("Reactor Online Repository", "https://gitlab.com/WeSuckLess/Reactor")
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Resources_Online_Discussion",
+		Category = "Reactor",
+		Name = "Reactor Online Discussion",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					platform = (FuPLATFORM_WINDOWS and "Windows") or (FuPLATFORM_MAC and "Mac") or (FuPLATFORM_LINUX and "Linux")
+					function OpenURL(siteName, path)
+						if platform == "Windows" then
+							-- Running on Windows
+							command = "explorer \"" .. path .. "\""
+						elseif platform == "Mac" then
+							-- Running on Mac
+							command = "open \"" .. path .. "\" &"
+						elseif platform == "Linux" then
+							-- Running on Linux
+							command = "xdg-open \"" .. path .. "\" &"
+						else
+							print("[Error] There is an invalid Fusion platform detected")
+							return
+						end
+						os.execute(command)
+						-- print("[Launch Command] ", command)
+						print("[Opening URL] [" .. siteName .. "] " .. path)
+					end
+
+					OpenURL("Reactor Online Discussion", "https://www.steakunderwater.com/wesuckless/viewforum.php?f=32")
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Resources_WSL",
+		Category = "Reactor",
+		Name = "We Suck Less",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					platform = (FuPLATFORM_WINDOWS and "Windows") or (FuPLATFORM_MAC and "Mac") or (FuPLATFORM_LINUX and "Linux")
+					function OpenURL(siteName, path)
+						if platform == "Windows" then
+							-- Running on Windows
+							command = "explorer \"" .. path .. "\""
+						elseif platform == "Mac" then
+							-- Running on Mac
+							command = "open \"" .. path .. "\" &"
+						 elseif platform == "Linux" then
+							-- Running on Linux
+							command = "xdg-open \"" .. path .. "\" &"
+						else
+							print("[Error] There is an invalid Fusion platform detected")
+							return
+						end
+						os.execute(command)
+						-- print("[Launch Command] ", command)
+						print("[Opening URL] [" .. siteName .. "] " .. path)
+					end
+
+					OpenURL("We Suck Less", "https://www.steakunderwater.com/")
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Resources_Bug_Tracker",
+		Category = "Reactor",
+		Name = "Bug Tracker",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					platform = (FuPLATFORM_WINDOWS and "Windows") or (FuPLATFORM_MAC and "Mac") or (FuPLATFORM_LINUX and "Linux")
+					function OpenURL(siteName, path)
+						if platform == "Windows" then
+							-- Running on Windows
+							command = "explorer \"" .. path .. "\""
+						elseif platform == "Mac" then
+							-- Running on Mac
+							command = "open \"" .. path .. "\" &"
+						 elseif platform == "Linux" then
+							-- Running on Linux
+							command = "xdg-open \"" .. path .. "\" &"
+						else
+							print("[Error] There is an invalid Fusion platform detected")
+							return
+						end
+						os.execute(command)
+						-- print("[Launch Command] ", command)
+						print("[Opening URL] [" .. siteName .. "] " .. path)
+					end
+
+					OpenURL("Bug Tracker", "https://www.steakunderwater.com/wesuckless/viewforum.php?f=19")
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Reactor_Prefs",
+		Category = "Reactor",
+		Name = "Reactor Preferences...",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					local separator = package.config:sub(1,1)
+					-- Check for a pre-existing PathMap preference
+					local reactor_existing_pathmap = app:GetPrefs("Global.Paths.Map.Reactor:")
+					if reactor_existing_pathmap and reactor_existing_pathmap ~= "nil" then
+						-- Clip off the "reactor_root" style trailing "Reactor/" subfolder
+						reactor_existing_pathmap = string.gsub(reactor_existing_pathmap, "Reactor" .. separator .. "$", "")
+					end
+
+					local reactor_pathmap = os.getenv("REACTOR_INSTALL_PATHMAP") or reactor_existing_pathmap or "AllData:"
+					local scriptPath = app:MapPath(tostring(reactor_pathmap) .. "Reactor/System/UI/Preferences.lua")
+					if bmd.fileexists(scriptPath) == false then
+						print("[Reactor Error] Open the Reactor window once to download the missing file: " .. scriptPath)
+					else
+						target:RunScript(scriptPath)
+					end
+				]=],
+			},
+		},
+	},
+	Action
+	{
+		ID = "Reactor_About",
+		Category = "Reactor",
+		Name = "About Reactor",
+
+		Targets =
+		{
+			Composition =
+			{
+				Execute = _Lua [=[
+					local separator = package.config:sub(1,1)
+					-- Check for a pre-existing PathMap preference
+					local reactor_existing_pathmap = app:GetPrefs("Global.Paths.Map.Reactor:")
+					if reactor_existing_pathmap and reactor_existing_pathmap ~= "nil" then
+						-- Clip off the "reactor_root" style trailing "Reactor/" subfolder
+						reactor_existing_pathmap = string.gsub(reactor_existing_pathmap, "Reactor" .. separator .. "$", "")
+					end
+
+					local reactor_pathmap = os.getenv("REACTOR_INSTALL_PATHMAP") or reactor_existing_pathmap or "AllData:"
+					local scriptPath = app:MapPath(tostring(reactor_pathmap) .. "Reactor/System/UI/AboutWindow.lua")
+					if bmd.fileexists(scriptPath) == false then
+						print("[Reactor Error] Open the Reactor window once to download the missing file: " .. scriptPath)
+					else
+						target:RunScript(scriptPath)
+					end
+				]=],
+			},
+		},
+	},
+	Hotkeys
+	{
+		Target = "FlowView",
+
+		CONTROL_F16 = "Reactor_Open{}",
+		CONTROL_F17 = "Reactor_Atomizer{}",
+		CONTROL_F18 = "Reactor_Open_Reactor_Log{}",
+		CONTROL_F19 = "Reactor_Resync{}",
+	},
+	Menus
+	{
+		Target = "ChildFrame",
+
+		Before "Help"
+		{
+			Sub "Reactor"
+			{
+				"Reactor_Open{}",
+				"_",
+				Sub "Tools" {
+					"Reactor_Atomizer{}",
+					"Reactor_Fuse_Scanner{}",
+					"Reactor_Macro_Scanner{}",
+					"Reactor_Plugin_Scanner{}",
+					"_",
+					"Reactor_Folder{}",
+					"Reactor_Docs_Folder{}",
+					"Reactor_Comps_Folder{}",
+					"Reactor_Config_Folder{}",
+					"Reactor_Temp_Folder{}",
+					"Reactor_Open_Reactor_Log{}",
+					"_",
+					"Reactor_Resync{}",
+					"_",
+					"Reactor_Reinstall_Reactor{}",
+				},
+				"_",
+				Sub "Resources"
+				{
+					"Resources_Reactor_Online_Repository{}",
+					"Resources_Online_Discussion{}",
+					"_",
+					"Resources_WSL{}",
+					"Resources_Bug_Tracker{}",
+				},
+				"_",
+				"Reactor_Prefs{}",
+				"_",
+				"Reactor_About{}",
+			},
+		},
+	},
+}

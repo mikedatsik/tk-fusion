@@ -13,6 +13,8 @@ import os
 import sgtk
 
 import BlackmagicFusion as bmd
+fusion = bmd.scriptapp("Fusion")
+
 
 HookBaseClass = sgtk.get_hook_baseclass()
 
@@ -76,6 +78,8 @@ class FusionSessionCollector(HookBaseClass):
 
         # create an item representing the current fusion session
         item = self.collect_current_fusion_session(settings, parent_item)
+        
+        self.collect_sg_savernodes(item)
 
     def collect_current_fusion_session(self, settings, parent_item):
         """
@@ -135,12 +139,48 @@ class FusionSessionCollector(HookBaseClass):
 
         return session_item
 
+    def collect_sg_savernodes(self, parent_item):
+
+        comp = fusion.GetCurrentComp()
+
+        publisher = self.parent
+        engine = publisher.engine
+
+        path = comp.GetAttrs()['COMPS_FileName']
+        work_template = engine.sgtk.template_from_path(path)
+        work_version = work_template.get_fields(path).get('version')
+
+        savers = comp.GetToolList(False, "Saver").values()
+        for saver in savers:
+            path = saver.GetAttrs()['TOOLST_Clip_Name'].values()[0]
+
+            template = engine.sgtk.template_from_path(path)
+            if template:
+                fields = template.get_fields(path)
+                template_version = fields.get('version')
+                if template_version is work_version:                
+                    frames = template.apply_fields(fields)
+                    base, ext = os.path.splitext(frames)
+                    if '.mov' not in ext:
+                        rendered_paths = glob.glob("%s*%s" % (base, ext))
+                        if rendered_paths:
+                            super(FusionSessionCollector, self)._collect_file(
+                                parent_item,
+                                rendered_paths[0],
+                                frame_sequence=True
+                            )
+                    else:
+                        if os.path.exists(frames):
+                            super(FusionSessionCollector, self)._collect_file(
+                                parent_item,
+                                frames
+                            )
+
 def _session_path():
     """
     Return the path to the current session
     :return:
     """
-    fusion = bmd.scriptapp("Fusion")
     comp = fusion.GetCurrentComp()
     
     path = comp.GetAttrs()['COMPS_FileName']

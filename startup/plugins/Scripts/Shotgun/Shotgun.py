@@ -1,6 +1,11 @@
 import os
+import re
 import sys
 import sgtk
+import BlackmagicFusion as bmd
+
+fusion = bmd.scriptapp("Fusion")
+comp = fusion.GetCurrentComp()
 
 logger = sgtk.LogManager.get_logger(__name__)
 
@@ -9,9 +14,17 @@ env_engine = os.environ.get("SGTK_ENGINE")
 env_context = os.environ.get("SGTK_CONTEXT")
 context = sgtk.context.deserialize(env_context)
 
+try:
+    path = comp.GetAttrs()['COMPS_FileName']
+    tk = sgtk.sgtk_from_path(path)
+    context = tk.context_from_path(path)
+except:
+    pass
+
 engine = sgtk.platform.start_engine(env_engine, context.sgtk, context)
 
 from sgtk.platform.qt import QtGui, QtCore
+
 
 class Window(QtGui.QWidget):
     """Simple Test"""
@@ -53,6 +66,7 @@ class Window(QtGui.QWidget):
         self.context_menu.addAction(self.work_aria_info)
 
         self.context_button = QtGui.QPushButton(str(engine.context))
+        self.context_button.setStyleSheet("background-color: #4A586E")
         self.context_button.setMenu(self.context_menu)
         #######################################
 
@@ -109,12 +123,44 @@ class Window(QtGui.QWidget):
         self.shotgun_workfiles_menu.addAction(self.shotgun_workfiles_menu_open)
         self.shotgun_workfiles_menu.addAction(self.shotgun_workfiles_menu_save)
 
-        self.shotgun_workfiles = QtGui.QPushButton("Shotgun Workfiles")
+        self.shotgun_workfiles = QtGui.QPushButton("Shotgun Workfiles") 
         self.shotgun_workfiles.setMenu(self.shotgun_workfiles_menu)
         #######################################
 
         self.syncFr = QtGui.QPushButton("Sync Frame Range with Shotgun")
         self.syncFr.clicked.connect(lambda: self.callMenu('Sync Frame Range with Shotgun'))
+
+        #######################################
+        self.sg_saver_dpx_out = QtGui.QAction(self)
+        self.sg_saver_dpx_out.setText("Dpx Output")
+        self.sg_saver_dpx_out.activated.connect(lambda: self.__create_sg_saver('dpx'))
+
+        self.sg_saver_exr16_out = QtGui.QAction(self)
+        self.sg_saver_exr16_out.setText("Exr, 16 bit Output")
+        self.sg_saver_exr16_out.activated.connect(lambda: self.__create_sg_saver('exr'))
+
+        self.sg_saver_pngProxy_out = QtGui.QAction(self)
+        self.sg_saver_pngProxy_out.setText("Png, Proxy with Alpha")
+        self.sg_saver_pngProxy_out.activated.connect(lambda: self.__create_sg_saver('png'))
+
+        self.sg_saver_review_out = QtGui.QAction(self)
+        self.sg_saver_review_out.setText("Shotgun Quick Review")
+        self.sg_saver_review_out.activated.connect(lambda: self.__create_sg_saver('mov'))
+
+        self.shotgun_output_menu = QtGui.QMenu(self)
+        self.shotgun_output_menu.addAction(self.sg_saver_dpx_out)
+        self.shotgun_output_menu.addAction(self.sg_saver_exr16_out)
+        self.shotgun_output_menu.addAction(self.sg_saver_pngProxy_out)
+        self.shotgun_output_menu.addAction(self.sg_saver_review_out)
+
+        self.sg_saver = QtGui.QPushButton("Create Output Node")
+        self.sg_saver.setMenu(self.shotgun_output_menu)
+        self.sg_saver.setStyleSheet("background-color: #810B44")
+
+        self.sg_saver_update = QtGui.QPushButton("Update Output Nodes")
+        self.sg_saver_update.clicked.connect(lambda: self.__update_sg_saver())
+        self.sg_saver_update.setStyleSheet("background-color: #4A586E")
+        #######################################
 
         qvbox = QtGui.QVBoxLayout()
 
@@ -146,6 +192,14 @@ class Window(QtGui.QWidget):
 
         qvbox.addWidget(self.syncFr)
 
+        self.line_tools = QtGui.QFrame()
+        self.line_tools.setFrameShape(QtGui.QFrame.HLine)
+        self.line_tools.setFrameShadow(QtGui.QFrame.Sunken)        
+        qvbox.addWidget(self.line_tools)
+
+        qvbox.addWidget(self.sg_saver)
+        qvbox.addWidget(self.sg_saver_update)
+        
         # qvbox.insertStretch(2)
         self.setLayout(qvbox)
                     
@@ -191,6 +245,64 @@ class Window(QtGui.QWidget):
             exit_code = os.system(cmd)
             if exit_code != 0:
                 engine.logger.error("Failed to launch '%s'!", cmd)
+
+    def __create_sg_saver(self, ext_type):
+        comp = fusion.GetCurrentComp()
+        path = comp.GetAttrs()['COMPS_FileName']
+
+        task_type = engine.context.entity.get("type")
+        work_template = engine.sgtk.template_from_path(path)
+        fields = work_template.get_fields(path)
+
+        comp_format = comp.GetPrefs().get('Comp').get('FrameFormat')
+        fields['height'] = int(comp_format.get('Height'))
+        fields['width'] = int(comp_format.get('Width'))
+        fields['output'] = 'output'
+
+        text, ok = QtGui.QInputDialog.getText(self, 'Input Name Dialog', 'Enter output name:')
+        
+        if text and ok:
+            fields['output'] = text
+
+        review_template = engine.get_template_by_name("fusion_%s_render_mono_%s" % (task_type.lower(), ext_type))
+        output = review_template.apply_fields(fields)
+        output = re.sub(r'%(\d+)d', '', output)
+
+        comp.Lock()
+
+        saver = comp.Saver({"Clip": output})
+        saver.SetAttrs({"TOOLS_Name": "shotgun_%s" % ext_type})
+        comp.Unlock()
+
+    def __update_sg_saver(self):
+        comp = fusion.GetCurrentComp()
+        path = comp.GetAttrs()['COMPS_FileName']
+
+        work_template = engine.sgtk.template_from_path(path)
+        work_version = work_template.get_fields(path).get('version')
+        
+        savers = comp.GetToolList(False, "Saver").values()
+
+        saver_names = []
+
+        for saver in savers:
+            path = saver.GetAttrs()['TOOLST_Clip_Name'].values()[0]
+            template = engine.sgtk.template_from_path(path)
+            if template:
+                fields = template.get_fields(path)
+                template_version = fields.get('version')
+                if template_version is not work_version:
+                    fields['version'] = work_version
+                    saver.Clip = template.apply_fields(fields)
+                    saver_names.append("<b>(%s)</b> form: v%03d to: v%03d<br>" % (saver.GetAttrs("TOOLS_Name"), template_version, work_version))
+        if saver_names:
+            QtGui.QMessageBox.information(self, "Shotgun Saver Updater",
+                "%s Saver Nodes: <br><br>%s <br><br>"
+                "Have been updated!" % (len(saver_names), "".join(saver_names))
+                )
+        else:
+            QtGui.QMessageBox.information(self, "Shotgun Saver Updater",
+                "No one node have been updated!")
 
 app = QtGui.QApplication.instance()
 
