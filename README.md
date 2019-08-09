@@ -1,18 +1,24 @@
-# Shotgun toolkit engine for Natron
+# Shotgun toolkit engine for Fusion
 
-Contact : [Diego Garcia Huerta](https://www.linkedin.com/in/diegogh/)
+Blackmagic Fusion toolkit base on Diego Garcia Huerta Natron Shotgun toolkit. Developing in progress... I have some issues with Qt Instansing and Events in Fusion itself, so on this phase I did a trick with separate Qt Instanse (Fusion runs FusionScript services that can Commuticate my Qt Instance with current session).
 
-![tk-natron_screenshot04](config/images/tk-natron_screenshot04.PNG)
+### TODO:
+
+* Build Menu based on Startup Programs and rebuild after initialization of the Task. 
+* Work on Fusion Event System (Open, Save, Change Active Document)
+* Better way to load master.prefs, Scripts and Config variables (now this is hardcoded)
+
+![tk-fusion_screenshot04](config/images/tk-fusion_screenshot04.PNG)
 
 ## Overview
 
-Implementation of a shotgun engine for [**Natron**](https://en.wikipedia.org/wiki/Natron_(software)). It supports the classic bootstrap startup methodology and integrates with Natron adding a shotgun menu in it's menu bar. 
+Implementation of a shotgun engine for [**Fusion**](https://www.blackmagicdesign.com/products/fusion). It supports the classic bootstrap startup methodology and integrates with Fusion adding a shotgun menu in it's menu bar. 
 
 * [Engine Installation](#engine-installation)
 * [Configuring your project for Shotgun Toolkit](#configuring-your-project-for-shotgun-toolkit)
 * [Modifying the toolkit configuration files to add this engine and related apps](#modifying-the-toolkit-configuration-files-to-add-this-engine-and-related-apps)
 * [Modifying the Templates](#modifying-the-templates)
-* [Configuring Natron in the software launcher](#configuring-natron-in-the-software-launcher)
+* [Configuring Fusion in the software launcher](#configuring-fusion-in-the-software-launcher)
 * [Caching and downloading the engine into disk](#caching-and-downloading-the-engine-into-disk)
 
 With the engine, hooks for most of the standard tk application are provided:
@@ -24,9 +30,9 @@ With the engine, hooks for most of the standard tk application are provided:
 * [tk-multi-breakdown](#tk-multi-breakdown)
 * [tk-multi-setframerange](#tk-multi-setframerange) ( see notes below as this is a fork from the original shotgun repository to allow having hooks per engine, as the original one has support only for certain applications)
 
-(I've also included a hook that allows to take a thumbnail of the current canvas from Natron, useful for configuring tk-multi-snapshot for example.)
+(I've also included a hook that allows to take a thumbnail of the current canvas from Fusion, useful for configuring tk-multi-snapshot for example.)
 
-**Note for developers:** It seems that when uploading/downloading data to shotgun from Natron, the python libraries included with Natron are not aware of the SSL certificates that normally would be used within shotgun toolkit. This happens mainly when downloading thumbnails for tk-multi-breakdown tool, or uploading thumbnails when publishing with tk-multi-publish2. The engine now registers those certificates automatically so these operations do not fail.
+**Note for developers:** It seems that when uploading/downloading data to shotgun from Fusion, the python libraries included with Fusion are not aware of the SSL certificates that normally would be used within shotgun toolkit. This happens mainly when downloading thumbnails for tk-multi-breakdown tool, or uploading thumbnails when publishing with tk-multi-publish2. The engine now registers those certificates automatically so these operations do not fail.
 
 This engine has been tested in Windows using version 2.3.14.
 
@@ -113,30 +119,30 @@ and add the following changes from this file:
 [engine_locations.yml](config/env/includes/engine_locations.yml)
 
 ```yaml
-# Natron
-engines.tk-natron.location:
+# Fusion
+engines.tk-fusion.location:
   type: git
   branch: master
-  path: https://github.com/diegogarciahuerta/tk-natron.git
+  path: https://github.com/mikedatsik/tk-fusion.git
   version: v1.0.0
 ```
 
-Or in your environments you should add tk-natron yml file, for example in the asset_step yml file:
+Or in your environments you should add tk-fusion yml file, for example in the asset_step yml file:
 ``/configs/game_config/env/asset_step.yml``
 
 Let's add the include at the beginning of the file, in the 'includes' section:
 ```yaml
-- ./includes/settings/tk-natron.yml
+- ./includes/settings/tk-fusion.yml
 ```
 
-Now we add a new entry under the engines section, that will include all the information for our natron application:
+Now we add a new entry under the engines section, that will include all the information for our fusion application:
 ```yaml
-  tk-natron: "@settings.tk-natron.asset_step"
+  tk-fusion: "@settings.tk-fusion.asset_step"
 ```
 
 And so on.
 
-Finally, do not forget to copy the additional `tk-natron.yml` into your settings folder.
+Finally, do not forget to copy the additional `tk-fusion.yml` into your settings folder.
 
 
 ## Modifying the Templates
@@ -146,18 +152,18 @@ The additions to `config/core/templates.yml` are provided also under the config 
 [templates.yml](config/core/templates.yml)
 
 
-## Configuring Natron in the software launcher
+## Configuring Fusion in the software launcher
 
-In order for Natron to show up in the shotgun launcher, we need to add it to our list of softwares that are valid for this project.
+In order for Fusion to show up in the shotgun launcher, we need to add it to our list of softwares that are valid for this project.
 
 * Navigate to your shotgun url, ie. `example.shotgunstudio.com`, and once logged in, clink in the Shotgun Settings menu, the arrow at the top right of the webpage, close to your user picture. 
 * Click in the Software menu
 ![select_a_project_configuration](config/images/select_a_project_configuration.png)
 
-* We will create a new entry for Natron, called "Natron". The description was conveniently copied and pasted from Wikipedia.
+* We will create a new entry for Fusion, called "Fusion". The description was conveniently copied and pasted from Wikipedia.
 ![create_new_software](config/images/create_new_software.png)
 
-* We should now specify the engine this software will use. "tk-natron"
+* We should now specify the engine this software will use. "tk-fusion"
 ![software_specify_engine](config/images/software_specify_engine.png)
 
 * Note that you can restrict this application to certain projects by specifying the project under the projects column. If no projects are specified this application will show up for all the projects that have this engine in their configuration files.
@@ -179,14 +185,16 @@ One last step is to cache the engine and apps from the configuration files into 
 ![tank_cache_apps](config/images/tank_cache_apps.png)
 
 
-## Natron engine should be ready to use
+## Fusion engine should be ready to use
 
-If we now go back and forth from our project in shotgun desktop ( < arrow top left if you are already within a project ), we should be able to see Natron as an application to launch.
+If we now go back and forth from our project in shotgun desktop ( < arrow top left if you are already within a project ), we should be able to see Fusion as an application to launch.
 
-![natron_is_configured.png](config/images/natron_is_configured.png)
+![fusion_is_configured.png](config/images/fusion_is_configured.png)
 
 
 ## [tk-multi-workfiles2](https://support.shotgunsoftware.com/hc/en-us/articles/219033088)
+![tk-fusion_screenshot01](config/images/tk-fusion_screenshot05.PNG)
+
 This application forms the basis for file management in the Shotgun Pipeline Toolkit. It lets you jump around quickly between your various Shotgun entities and gets you started working quickly. No path needs to be specified as the application manages that behind the scenes. The application helps you manage your working files inside a Work Area and makes it easy to share your work with others.
 
 Basic hooks have been implemented for this tk-app to work. open, save, save_as, reset, and current_path are the scene operations implemented.
@@ -197,25 +205,23 @@ A Shotgun Snapshot is a quick incremental backup that lets you version and manag
 Hooks are provided to be able to use this tk-app, similar to workfiles2.
 
 ## [tk-multi-loader2](https://support.shotgunsoftware.com/hc/en-us/articles/219033078)
-![tk-natron_screenshot01](config/images/tk-natron_screenshot01.PNG)
+![tk-fusion_screenshot01](config/images/tk-fusion_screenshot04.png)
 
 The Shotgun Loader lets you quickly overview and browse the files that you have published to Shotgun. A searchable tree view navigation system makes it easy to quickly get to the task, shot or asset that you are looking for and once there the loader shows a thumbnail based overview of all the publishes for that item. Through configurable hooks you can then easily reference or import a publish into your current scene.
 
-The hooks provided support all the image formats, ffmpeg video formats and LUTs supported in Natron as of version 2.3.14. A " create read node" action has been implemented where internally the right natron plugin is used and configured accordingly, ie. 'fr.inria.openfx.OCIOFileTransform' used for LUTs,  'fr.inria.openfx.ReadOIIO' node is used for image extensions, 'fr.inria.openfx.ReadFFmpeg' for videos, and so on, with pdf, svg, psd, etc ... files.
 
 ## [tk-multi-publish2](https://support.shotgunsoftware.com/hc/en-us/articles/115000097513)
-![tk-natron_screenshot03](config/images/tk-natron_screenshot03.PNG)
+![tk-fusion_screenshot03](config/images/tk-fusion_screenshot03.PNG)
 
 The Publish app allows artists to publish their work so that it can be used by artists downstream. It supports traditional publishing workflows within the artist’s content creation software as well as stand-alone publishing of any file on disk. When working in content creation software and using the basic Shotgun integration, the app will automatically discover and display items for the artist to publish. For more sophisticated production needs, studios can write custom publish plugins to drive artist workflows.
 
-Only the basic publishing of the current session is provided with this app. No publishing of write nodes has been implemented yet.
 
 ## [tk-multi-breakdown](https://support.shotgunsoftware.com/hc/en-us/articles/219032988)
-![tk-natron_screenshot02](config/images/tk-natron_screenshot02.PNG)
+![tk-fusion_screenshot02](config/images/tk-fusion_screenshot02.PNG)
 
 The Scene Breakdown App shows you a list of items you have loaded (referenced) in your scene and tells you which ones are out of date. From this overview, you can select multiple objects and click the update button which will update all your selected items to use the latest published version.
 
-Hook provided support the updating of read and write nodes within Natron.
+Hook provided support the updating of read and write nodes within Fusion.
 
 ## [tk-multi-setframerange](https://support.shotgunsoftware.com/hc/en-us/articles/219033038)
 This is a simple yet useful app that syncs your current file with the latest frame range in Shotgun for the associated shot. If a change to the cut has come in from editorial, quickly and safely update the scene you are working on using this app. Towards the end, it will display a UI with information about what got changed.
@@ -232,7 +238,7 @@ The location section for this app should look like:
         version: b24a977
 ```
 where version represents the commit id. (at the time of writting the latest commit)
-(note that the hook for natron is however included with the tk-natron engine)
+(note that the hook for fusion is however included with the tk-fusion engine)
 
 For completion, I've kept the original README from shotgun, that include very valuable links:
 

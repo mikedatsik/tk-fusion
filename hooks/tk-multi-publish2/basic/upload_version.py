@@ -12,6 +12,7 @@ import os
 import pprint
 import sys
 import sgtk
+import BlackmagicFusion as bmd
 
 HookBaseClass = sgtk.get_hook_baseclass()
 
@@ -116,7 +117,7 @@ class UploadVersionPlugin(HookBaseClass):
         """
 
         # we use "video" since that's the mimetype category.
-        return ["file.image.sequence"]
+        return ["file.image.sequence", "file.video"]
 
     def accept(self, settings, item):
         """
@@ -209,7 +210,15 @@ class UploadVersionPlugin(HookBaseClass):
         publisher = self.parent
         path_to_frames = item.properties["path"]
 
-        seq_data = self.__render_movie_from_sequence(path_to_frames.encode('utf-8'))
+        fusion = bmd.scriptapp("Fusion")
+        comp = fusion.GetCurrentComp()
+        first_frame = int(comp.GetAttrs()["COMPN_GlobalStart"])
+        
+        try:
+            seq_data = self.__render_movie_from_sequence(path_to_frames.encode('utf-8'))
+        except:
+            seq_data = {'path': path_to_frames, 'first_frame': first_frame}
+        
         path = seq_data.get('path')
 
         # allow the publish name to be supplied via the item properties. this is

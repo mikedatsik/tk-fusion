@@ -271,6 +271,7 @@ class Window(QtGui.QWidget):
         comp.Lock()
 
         saver = comp.Saver({"Clip": output})
+        saver.CreateDir = 0
         saver.SetAttrs({"TOOLS_Name": "shotgun_%s" % ext_type})
         comp.Unlock()
 
