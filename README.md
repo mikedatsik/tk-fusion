@@ -8,7 +8,7 @@ Blackmagic Fusion toolkit base on Diego Garcia Huerta Natron Shotgun toolkit. De
 * Work on Fusion Event System (Open, Save, Change Active Document)
 * Better way to load master.prefs, Scripts and Config variables (now this is hardcoded)
 
-![tk-fusion_screenshot04](config/images/tk-fusion_screenshot04.PNG)
+![tk-fusion_screenshot04](config/images/tk-fusion_screenshot04.png)
 
 ## Overview
 
