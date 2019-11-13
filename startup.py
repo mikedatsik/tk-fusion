@@ -12,6 +12,7 @@ import os
 import sys
 
 import sgtk
+from sgtk.util.filesystem  import copy_folder
 from sgtk.platform import SoftwareLauncher, SoftwareVersion, LaunchInformation
 
 
@@ -67,27 +68,29 @@ class FusionLauncher(SoftwareLauncher):
         """
         required_env = {}
 
-        # Run the engine's init.py file when Fusion starts up
-        # startup_path = os.path.join(self.disk_location, "startup", "init.py")
-        startup_path = os.path.join(
-            self.disk_location, "startup", "plugins", "Profile", "master.prefs"
-        )
+        current_os = sys.platform.lower()
+        
+        if current_os == "darwin":
+            python_path = os.environ.get("SHOTGUN_DESKTOP_INSTALL_PATH",
+                                          "/Applications/Shotgun.app/Python")
+            fusion_home = "/Library/Application Support/Blackmagic Design/Fusion"
+        
+        elif current_os == "win32":
+            python_path = os.environ.get("SHOTGUN_DESKTOP_INSTALL_PATH",
+                                          "C:/Program Files/Shotgun/Python")
+            fusion_home = "C:/ProgramData/Blackmagic Design/Fusion"
+
+        elif current_os == "linux2":
+            python_path = os.environ.get("SHOTGUN_DESKTOP_INSTALL_PATH",
+                                          "/opt/Shotgun/Shotgun/Python")
+            fusion_home = "/var/BlackmagicDesign/Fusion"
+ 
+        # Copy Fusion Startup modules to right folder
+        copy_folder(os.path.join(self.disk_location, "startup"), fusion_home)
 
         sgtk.util.append_path_to_env_var(
-            "FUSION9_MasterPrefs", startup_path
-        )
-        sgtk.util.append_path_to_env_var(
-            "FUSION16_MasterPrefs", startup_path
-        )
-        sgtk.util.append_path_to_env_var(
-             "FUSION_PYTHON27_HOME", "C:/Program Files/Shotgun/Python")
+             "FUSION_PYTHON27_HOME", python_path)
 
-        required_env["FUSION9_MasterPrefs"] = os.environ[
-            "FUSION9_MasterPrefs"
-        ]
-        required_env["FUSION16_MasterPrefs"] = os.environ[
-            "FUSION9_MasterPrefs"
-        ]        
         # Prepare the launch environment with variables required by the
         # classic bootstrap approach.
         self.logger.debug(
@@ -99,7 +102,7 @@ class FusionLauncher(SoftwareLauncher):
             # Add the file name to open to the launch environment
             required_env["SGTK_FILE_TO_OPEN"] = file_to_open
 
-        args = '"%s"' % startup_path
+        args = ""
         return LaunchInformation(exec_path, args, required_env)
 
     def _icon_from_engine(self):
@@ -116,7 +119,7 @@ class FusionLauncher(SoftwareLauncher):
 
     def scan_software(self):
         """
-        Scan the filesystem for fusion executables.
+        Scan the filesystem for Fusion executables.
 
         :return: A list of :class:`SoftwareVersion` objects.
         """
